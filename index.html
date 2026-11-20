@@ -50,9 +50,9 @@
           <div>
             <h1 class="font-bold text-base sm:text-lg leading-tight flex items-center gap-2">
               YouTube Transkript İndirici
-              <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">v2.1 Zaman Damgalı</span>
+              <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">v2.2 Akıllı Arama</span>
             </h1>
-            <p class="text-xs text-slate-400">Toplu Altyazı Ayıklama, Zaman Damgaları & Akıllı Metin Temizleme</p>
+            <p class="text-xs text-slate-400">Tüm Videolar & Canlı Yayınlar, Zaman Damgaları & Filtreli İndirme</p>
           </div>
         </div>
 
@@ -84,7 +84,7 @@
               <i class="fa-solid fa-link text-indigo-400 mr-1"></i> YouTube Kanalı, Oynatma Listesi veya Video Linki
             </label>
             <div class="relative">
-              <input type="text" id="urlInput" placeholder="Örn: @BarisOzcan veya https://www.youtube.com/watch?v=..." 
+              <input type="text" id="urlInput" value="@kemalpasabelediyesi" placeholder="Örn: @kemalpasabelediyesi veya https://www.youtube.com/..." 
                 class="w-full bg-slate-950/90 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition pl-10 pr-20 shadow-inner">
               <i class="fa-brands fa-youtube absolute left-3.5 top-3.5 text-slate-500"></i>
               <button onclick="clearUrl()" class="absolute right-2.5 top-2.5 px-2 py-1 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition">
@@ -93,10 +93,10 @@
             </div>
             <!-- Hızlı Örnekler -->
             <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 pt-1">
-              <span class="text-slate-500">Hızlı Link:</span>
-              <button onclick="setUrl('https://www.youtube.com/watch?v=rcvNmvVbfNs')" class="hover:text-indigo-300 underline decoration-dotted text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">Proje Onayı Süreci</button>
+              <span class="text-slate-500">Örnekler:</span>
+              <button onclick="setUrl('@kemalpasabelediyesi')" class="hover:text-indigo-300 underline decoration-dotted text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">@kemalpasabelediyesi (99 Video)</button>
+              <button onclick="setUrl('https://www.youtube.com/watch?v=rcvNmvVbfNs')" class="hover:text-indigo-300 underline decoration-dotted text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">Tek Video</button>
               <button onclick="setUrl('@BarisOzcan')" class="hover:text-indigo-300 underline decoration-dotted text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">@BarisOzcan</button>
-              <button onclick="setUrl('@TED')" class="hover:text-indigo-300 underline decoration-dotted text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">@TED</button>
             </div>
           </div>
 
@@ -127,7 +127,7 @@
             <button id="scanBtn" onclick="startScan()" 
               class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2">
               <i class="fa-solid fa-magnifying-glass"></i>
-              <span>Videoları Listele</span>
+              <span>Tüm Videoları Bul</span>
             </button>
           </div>
 
@@ -142,7 +142,7 @@
           </div>
           <div>
             <div id="statTotal" class="text-xl font-bold">0</div>
-            <div class="text-xs text-slate-400">Toplam Video</div>
+            <div class="text-xs text-slate-400">Kanal Toplamı</div>
           </div>
         </div>
         <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center space-x-3 shadow-md">
@@ -150,8 +150,8 @@
             <i class="fa-solid fa-check-double"></i>
           </div>
           <div>
-            <div id="statSelected" class="text-xl font-bold">0</div>
-            <div class="text-xs text-slate-400">Seçilen Video</div>
+            <div id="statSelected" class="text-xl font-bold text-indigo-400">0</div>
+            <div class="text-xs text-slate-400">İndirilecek Seçili</div>
           </div>
         </div>
         <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center space-x-3 shadow-md">
@@ -180,17 +180,17 @@
           <div class="space-y-1">
             <div class="flex items-center gap-2">
               <span id="progressSpinner" class="hidden text-indigo-400 animate-spin text-lg"><i class="fa-solid fa-circle-notch"></i></span>
-              <h3 id="progressTitle" class="font-bold text-slate-100 text-base">Transkript İndirme İşlemi</h3>
+              <h3 id="progressTitle" class="font-bold text-slate-100 text-base">İndirme Paneli</h3>
             </div>
             <p id="progressSubtitle" class="text-xs text-slate-400">
-              Seçilen videolar sırayla indirilecek, zaman damgaları eklenecek ve temiz metin olarak kaydedilecektir.
+              Aşağıdaki filtreden istediğiniz kelimeyi aratıp (örn: <strong class="text-indigo-300">meclis</strong>) sadece çıkanları seçip indirebilirsiniz.
             </p>
           </div>
 
           <div class="flex items-center gap-3">
             <button id="downloadBtn" onclick="startBatchDownload()" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center gap-2 text-sm">
               <i class="fa-solid fa-cloud-arrow-down"></i>
-              <span>Seçilenleri İndir</span>
+              <span id="downloadBtnText">Seçilenleri İndir</span>
             </button>
             <button id="stopBtn" onclick="stopDownload()" class="hidden bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition flex items-center gap-2">
               <i class="fa-solid fa-circle-stop"></i> Durdur
@@ -212,26 +212,40 @@
 
       <!-- Video Listesi Masası -->
       <section id="listSection" class="hidden space-y-4">
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
-          <!-- Arama -->
-          <div class="relative w-full sm:w-80">
-            <input type="text" id="filterInput" oninput="filterVideos()" placeholder="Video başlığında filtrele..." 
-              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-indigo-500 pl-8 transition">
-            <i class="fa-solid fa-search absolute left-3 top-3 text-slate-500 text-xs"></i>
+        
+        <!-- Arama ve Akıllı Filtre Butonları Barı -->
+        <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-lg">
+          
+          <!-- Arama Kutusu -->
+          <div class="relative flex-1 max-w-md">
+            <input type="text" id="filterInput" oninput="filterVideos()" placeholder="Örn: 'meclis' yazarak sadece toplantıları filtreleyin..." 
+              class="w-full bg-slate-950 border border-indigo-500/40 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 pl-10 pr-20 transition shadow-inner">
+            <i class="fa-solid fa-search absolute left-3.5 top-3.5 text-indigo-400 text-sm"></i>
+            <button id="clearFilterBtn" onclick="clearFilter()" class="hidden absolute right-2.5 top-2 px-2 py-1 text-xs text-slate-400 hover:text-white bg-slate-800 rounded-md transition">
+              Temizle
+            </button>
           </div>
 
-          <!-- Toplu Seçim Butonları -->
-          <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <button onclick="selectAll(true)" class="px-3 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
-              <i class="fa-solid fa-square-check text-indigo-400"></i> Tümünü Seç
+          <!-- Filtre Sonuç Rozeti & Hızlı Seçim Butonları -->
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="filterStatsBadge" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 font-medium">
+              99 video listeleniyor
+            </span>
+
+            <button onclick="selectFilteredOnly(true)" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5" title="Sadece arama sonucundaki videoları seçer, diğerlerini kaldırır">
+              <i class="fa-solid fa-check"></i> <span id="btnSelectFilteredText">Filtrelenenleri Seç</span>
             </button>
-            <button onclick="selectAll(false)" class="px-3 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
-              <i class="fa-regular fa-square text-slate-400"></i> Seçimi Kaldır
+            <button onclick="selectFilteredOnly(false)" class="px-3 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1.5" title="Sadece arama sonucundaki videoların seçimini kaldırır">
+              <i class="fa-regular fa-square"></i> Filtrelenenleri Bırak
             </button>
-            <button onclick="selectUncachedOnly()" class="px-3 py-1.5 rounded-lg text-xs bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition flex items-center gap-1.5" title="Sadece henüz indirilmemiş olanları seç">
-              <i class="fa-solid fa-filter"></i> Sadece Eksikleri Seç
+            <button onclick="selectAll(true)" class="px-3 py-1.5 rounded-lg text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1.5" title="Kanalın tümünü seçer">
+              Tümü
+            </button>
+            <button onclick="selectAll(false)" class="px-3 py-1.5 rounded-lg text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1.5" title="Tüm seçimleri temizler">
+              Sıfırla
             </button>
           </div>
+
         </div>
 
         <!-- Tablo -->
@@ -241,7 +255,7 @@
               <thead class="bg-slate-900/90 text-slate-400 text-xs font-semibold uppercase tracking-wider sticky top-0 border-b border-slate-800 z-10 backdrop-blur">
                 <tr>
                   <th class="p-3.5 w-12 text-center">
-                    <input type="checkbox" id="headerCheckbox" onchange="toggleAllCheckboxes(this.checked)" class="w-4 h-4 rounded text-indigo-600 bg-slate-800 border-slate-700 focus:ring-0 cursor-pointer">
+                    <input type="checkbox" id="headerCheckbox" onchange="toggleVisibleCheckboxes(this.checked)" class="w-4 h-4 rounded text-indigo-600 bg-slate-800 border-slate-700 focus:ring-0 cursor-pointer" title="Ekranda görünenleri seç / kaldır">
                   </th>
                   <th class="p-3.5 w-14 text-center">#</th>
                   <th class="p-3.5 w-24">Görsel</th>
@@ -329,7 +343,7 @@
 
   <!-- Alt Bilgi -->
   <footer class="border-t border-slate-800/80 bg-slate-950 py-4 text-center text-xs text-slate-500">
-    YouTube Transkript İndirici • UTF-8 & Zaman Damgalı Altyazı Motoru
+    YouTube Transkript İndirici • Canlı Yayınlar, Zaman Damgaları & Akıllı Arama Filtresi
   </footer>
 
   <script>
@@ -337,7 +351,21 @@
     let isDownloading = false;
     let shouldStop = false;
     let currentModalData = null;
-    let currentModalView = 'ts'; // 'ts' veya 'clean'
+    let currentModalView = 'ts';
+
+    // Türkçe ve aksan duyarsız normalizasyon
+    function normalizeTr(str) {
+      if (!str) return '';
+      return str
+        .toLocaleLowerCase('tr-TR')
+        .replace(/ı/g, 'i')
+        .replace(/ğ/g, 'g')
+        .replace(/ü/g, 'u')
+        .replace(/ş/g, 's')
+        .replace(/ö/g, 'o')
+        .replace(/ç/g, 'c')
+        .trim();
+    }
 
     // Zaman Damgası Switch
     document.getElementById('timestampsCheckbox').addEventListener('change', function() {
@@ -425,18 +453,14 @@
             error: null
           }));
 
+          document.getElementById('filterInput').value = '';
           renderVideoList();
           updateStats();
           document.getElementById('statsSection').classList.remove('hidden');
           document.getElementById('progressSection').classList.remove('hidden');
           document.getElementById('listSection').classList.remove('hidden');
           
-          showToast(`${data.channel_title}: Toplam ${data.count} video listelendi.`, 'success');
-
-          if (videos.length === 1 && !videos[0].cached) {
-            document.getElementById('progressTitle').innerText = 'Tek Video Algılandı';
-            document.getElementById('currentStatusText').innerText = 'İndirmek için "Seçilenleri İndir" butonuna basabilir veya doğrudan satırdan indirebilirsiniz.';
-          }
+          showToast(`${data.channel_title}: Toplam ${data.count} video (Normal + Canlı Yayınlar) listelendi.`, 'success');
         } else {
           showToast(data.error || 'Bu linkte video bulunamadı. Lütfen URL kontrol edin.', 'error');
         }
@@ -444,23 +468,61 @@
         showToast('Sunucuyla bağlantı kurulamadı: ' + err.message, 'error');
       } finally {
         scanBtn.disabled = false;
-        scanBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i><span>Videoları Listele</span>`;
+        scanBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i><span>Tüm Videoları Bul</span>`;
       }
+    }
+
+    // Filtreleme fonksiyonu
+    function getFilteredIndices() {
+      const rawFilter = document.getElementById('filterInput').value;
+      const normalizedFilter = normalizeTr(rawFilter);
+      
+      const indices = [];
+      videos.forEach((v, idx) => {
+        if (!normalizedFilter || normalizeTr(v.title).includes(normalizedFilter)) {
+          indices.push(idx);
+        }
+      });
+      return indices;
+    }
+
+    function filterVideos() {
+      renderVideoList();
+    }
+
+    function clearFilter() {
+      document.getElementById('filterInput').value = '';
+      renderVideoList();
     }
 
     // Video Listesini Tabloda Gösterme
     function renderVideoList() {
       const tbody = document.getElementById('videoTableBody');
-      const filter = (document.getElementById('filterInput').value || '').toLowerCase();
+      const rawFilter = document.getElementById('filterInput').value.trim();
+      const normalizedFilter = normalizeTr(rawFilter);
+      const clearBtn = document.getElementById('clearFilterBtn');
+      const badge = document.getElementById('filterStatsBadge');
+      const selectBtnText = document.getElementById('btnSelectFilteredText');
+
+      if (rawFilter) {
+        clearBtn.classList.remove('hidden');
+      } else {
+        clearBtn.classList.add('hidden');
+      }
+
       tbody.innerHTML = '';
+      let visibleCount = 0;
+      let visibleSelectedCount = 0;
 
       videos.forEach((video, index) => {
-        if (filter && !video.title.toLowerCase().includes(filter)) {
-          return;
-        }
+        const matches = !normalizedFilter || normalizeTr(video.title).includes(normalizedFilter);
+        if (!matches) return;
+
+        visibleCount++;
+        if (video.selected) visibleSelectedCount++;
 
         const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-800/40 transition group";
+        tr.className = `hover:bg-slate-800/40 transition group ${video.selected ? 'bg-indigo-950/20' : ''}`;
 
         let statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-400">Bekliyor</span>`;
         if (video.status === 'downloading') {
@@ -469,6 +531,13 @@
           statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><i class="fa-solid fa-check text-[10px]"></i> Hazır</span>`;
         } else if (video.status === 'failed') {
           statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20" title="${escapeHtml(video.error || '')}"><i class="fa-solid fa-xmark text-[10px]"></i> Altyazı Yok</span>`;
+        }
+
+        // Başlıkta arama kelimesini vurgula
+        let displayTitle = escapeHtml(video.title);
+        if (rawFilter) {
+          const esc = rawFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          displayTitle = displayTitle.replace(new RegExp(`(${esc})`, 'gi'), '<mark>$1</mark>');
         }
 
         tr.innerHTML = `
@@ -483,7 +552,7 @@
           </td>
           <td class="p-3.5">
             <a href="${video.link}" target="_blank" class="font-medium text-slate-200 hover:text-indigo-400 transition line-clamp-2 text-xs sm:text-sm">
-              ${escapeHtml(video.title)}
+              ${displayTitle}
             </a>
           </td>
           <td class="p-3.5 text-center font-mono text-xs text-slate-400">${video.duration}</td>
@@ -495,7 +564,7 @@
                   <i class="fa-regular fa-file-lines"></i> Oku
                 </button>
               ` : `
-                <button onclick="downloadDirectSingle(${index})" class="px-2.5 py-1 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition border border-slate-700 flex items-center gap-1 shadow-sm" title="Sadece bu videonun transkriptini indir">
+                <button onclick="downloadDirectSingle(${index})" class="px-2.5 py-1 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition border border-slate-700 flex items-center gap-1 shadow-sm" title="Sadece bu videoyu indir">
                   <i class="fa-solid fa-download text-[11px]"></i> İndir
                 </button>
               `}
@@ -507,37 +576,68 @@
         `;
         tbody.appendChild(tr);
       });
+
+      // İstatistik ve Buton Yazıları
+      if (rawFilter) {
+        badge.innerHTML = `Toplam <strong>${videos.length}</strong> videodan <strong class="text-indigo-300 font-bold">${visibleCount}</strong> tanesi eşleşti (${visibleSelectedCount} seçili)`;
+        selectBtnText.innerText = `Filtrelenenleri Seç (${visibleCount})`;
+      } else {
+        badge.innerHTML = `Toplam <strong>${videos.length}</strong> video listeleniyor`;
+        selectBtnText.innerText = 'Filtrelenenleri Seç';
+      }
+
+      // Başlık checkbox durumunu güncelle
+      const headerCb = document.getElementById('headerCheckbox');
+      if (headerCb) {
+        headerCb.checked = visibleCount > 0 && visibleCount === visibleSelectedCount;
+      }
+
+      updateStats();
     }
 
     function toggleSelect(index, isChecked) {
       videos[index].selected = isChecked;
+      renderVideoList();
       updateStats();
     }
 
-    function toggleAllCheckboxes(isChecked) {
-      videos.forEach(v => v.selected = isChecked);
+    // SADECE arama sonucunda görünenleri seç / diğerlerini seçimi kaldır
+    function selectFilteredOnly(val) {
+      const filteredIndices = getFilteredIndices();
+      if (val) {
+        // Önce tümünü kaldır, sadece filtrelenenleri seç
+        videos.forEach(v => v.selected = false);
+        filteredIndices.forEach(idx => videos[idx].selected = true);
+        showToast(`Sadece filtrelenen ${filteredIndices.length} video seçildi. Diğerleri kaldırıldı.`, 'success');
+      } else {
+        filteredIndices.forEach(idx => videos[idx].selected = false);
+        showToast(`Filtrelenen ${filteredIndices.length} videonun seçimi kaldırıldı.`, 'info');
+      }
+      renderVideoList();
+      updateStats();
+    }
+
+    // Tablo başlığındaki checkbox tıklandığında sadece görünenleri işaretle
+    function toggleVisibleCheckboxes(isChecked) {
+      const filteredIndices = getFilteredIndices();
+      filteredIndices.forEach(idx => {
+        videos[idx].selected = isChecked;
+      });
       renderVideoList();
       updateStats();
     }
 
     function selectAll(val) {
       videos.forEach(v => v.selected = val);
-      document.getElementById('headerCheckbox').checked = val;
+      const headerCb = document.getElementById('headerCheckbox');
+      if (headerCb) headerCb.checked = val;
       renderVideoList();
       updateStats();
-    }
-
-    function selectUncachedOnly() {
-      videos.forEach(v => {
-        v.selected = !v.transcript;
-      });
-      renderVideoList();
-      updateStats();
-      showToast('Henüz indirilmemiş videolar seçildi.', 'info');
-    }
-
-    function filterVideos() {
-      renderVideoList();
+      if (val) {
+        showToast(`Kanalın tümü (${videos.length} video) seçildi.`, 'info');
+      } else {
+        showToast('Tüm seçimler temizlendi.', 'info');
+      }
     }
 
     function updateStats() {
@@ -550,9 +650,15 @@
       document.getElementById('statSelected').innerText = selected;
       document.getElementById('statSuccess').innerText = success;
       document.getElementById('statFailed').innerText = failed;
+
+      // İndirme butonunun metnini dinamik güncelle
+      const dlBtnText = document.getElementById('downloadBtnText');
+      if (dlBtnText) {
+        dlBtnText.innerText = selected > 0 ? `Seçilen ${selected} Videoyu İndir` : 'Seçilenleri İndir';
+      }
     }
 
-    // Tek bir videoyu doğrudan indirme butonu
+    // Tek videoyu indirme
     async function downloadDirectSingle(index) {
       const video = videos[index];
       if (!video) return;
@@ -624,14 +730,13 @@
       let doneCount = 0;
       const totalToDownload = selectedList.length;
 
-      document.getElementById('progressTitle').innerText = 'Transkriptler İndiriliyor...';
+      document.getElementById('progressTitle').innerText = `${totalToDownload} Video İndiriliyor...`;
       document.getElementById('progressBar').style.width = '0%';
 
       for (let i = 0; i < selectedList.length; i++) {
         if (shouldStop) break;
 
         const video = selectedList[i];
-        
         video.status = 'downloading';
         renderVideoList();
 
@@ -676,7 +781,7 @@
         renderVideoList();
 
         if (i < selectedList.length - 1 && !shouldStop) {
-          await new Promise(r => setTimeout(r, 800));
+          await new Promise(r => setTimeout(r, 600));
         }
       }
 
@@ -691,8 +796,8 @@
         showToast('İndirme durduruldu.', 'warning');
       } else {
         document.getElementById('progressTitle').innerText = 'İndirme Tamamlandı!';
-        document.getElementById('currentStatusText').innerText = 'Tüm seçilen videolar işlendi.';
-        showToast('Tüm seçilen transkriptler zaman damgalı olarak indirildi!', 'success');
+        document.getElementById('currentStatusText').innerText = `${doneCount} adet video transkripti başarıyla işlendi.`;
+        showToast(`Tüm seçilen transkriptler (${doneCount} adet) başarıyla indirildi!`, 'success');
       }
     }
 
@@ -701,7 +806,7 @@
       document.getElementById('currentStatusText').innerText = 'Durduruluyor...';
     }
 
-    // Modal Görünüm Değiştirici (Zaman Damgalı vs Düz Metin)
+    // Modal Görünüm Değiştirici
     function switchModalView(view) {
       currentModalView = view;
       const btnTs = document.getElementById('viewBtnTs');
@@ -743,7 +848,7 @@
       if (!v || !v.transcript) return;
 
       currentModalData = v;
-      currentModalView = 'ts'; // varsayılan zaman damgalı
+      currentModalView = 'ts';
       document.getElementById('modalTitle').innerText = v.title;
       document.getElementById('modalLink').href = v.link;
       document.getElementById('modalLinkText').innerText = v.link;

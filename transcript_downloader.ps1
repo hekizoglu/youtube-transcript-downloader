@@ -1,5 +1,5 @@
 ﻿# ==============================================================================
-# YOUTUBE KANAL TOPLU TRANSKRİPT İNDİRİCİ (ZAMAN DAMGALI & GÖRSEL ARAYÜZLÜ)
+# YOUTUBE KANAL TOPLU TRANSKRİPT İNDİRİCİ (TÜM VİDEOLAR + CANLI YAYINLAR)
 # ==============================================================================
 
 $ErrorActionPreference = "Continue"
@@ -67,9 +67,9 @@ if (Get-Command "yt-dlp" -ErrorAction SilentlyContinue) {
 
 # 2. ADIM: KANAL / VİDEO LİNKİ ALMA
 $ChannelUrl = [Microsoft.VisualBasic.Interaction]::InputBox(
-    "Transkriptlerini indirmek istediğiniz YouTube kanalı, oynatma listesi veya video linkini girin:`n(Örn: https://www.youtube.com/watch?v=rcvNmvVbfNs veya @KanalAdi)",
+    "Transkriptlerini indirmek istediğiniz YouTube kanalı, oynatma listesi veya video linkini girin:`n(Örn: @kemalpasabelediyesi)",
     "1. Adım: YouTube Linki",
-    "https://www.youtube.com/watch?v=rcvNmvVbfNs"
+    "@kemalpasabelediyesi"
 )
 
 if ([string]::IsNullOrWhiteSpace($ChannelUrl)) {
@@ -88,43 +88,62 @@ if ([string]::IsNullOrWhiteSpace($SubLangs)) { $SubLangs = "tr,en" }
 $OutputDir = Join-Path $PSScriptRoot "transkriptler"
 if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null }
 
-# 4. ADIM: VİDEOLARI LİSTELEME
-Write-Host "`nYouTube taranıyor... Lütfen bekleyin..." -ForegroundColor Yellow
+# 4. ADIM: TÜM VİDEOLARI LİSTELEME (/videos, /streams, /shorts)
+Write-Host "`nYouTube taranıyor (Normal Videolar + Canlı Yayınlar)... Lütfen bekleyin..." -ForegroundColor Yellow
 
-if ($ChannelUrl -notmatch "playlist\?list=" -and $ChannelUrl -notmatch "/videos$" -and $ChannelUrl -notmatch "watch\?v=" -and $ChannelUrl -notmatch "youtu\.be/" -and $ChannelUrl -notmatch "/shorts/") {
-    $ChannelUrl = $ChannelUrl.TrimEnd('/') + "/videos"
+$ScanUrls = @()
+if ($ChannelUrl -match "playlist\?list=" -or $ChannelUrl -match "watch\?v=" -or $ChannelUrl -match "youtu\.be/") {
+    $ScanUrls += $ChannelUrl
+} else {
+    $Base = $ChannelUrl.TrimEnd('/')
+    if ($Base.StartsWith("@")) { $Base = "https://www.youtube.com/$Base" }
+    elseif (-not $Base.StartsWith("http")) { $Base = "https://www.youtube.com/@$Base" }
+    $Base = $Base -replace "/(videos|streams|shorts|featured)$", ""
+    
+    $ScanUrls += "$Base/videos"
+    $ScanUrls += "$Base/streams"
+    $ScanUrls += "$Base/shorts"
 }
 
-$RawVideos = & $YtDlpCmd --flat-playlist --print "%(id)s|%(title)s|%(duration_string)s" --no-warnings --ignore-errors $ChannelUrl 2>$null
+$VideoList = @()
+$SeenIds = New-Object System.Collections.Generic.HashSet[string]
+$Index = 1
 
-if (-not $RawVideos) {
+foreach ($ScanTarget in $ScanUrls) {
+    $RawVideos = & $YtDlpCmd --flat-playlist --print "%(id)s|%(title)s|%(duration_string)s" --no-warnings --ignore-errors $ScanTarget 2>$null
+    if ($RawVideos) {
+        foreach ($Line in $RawVideos) {
+            $Parts = $Line -split "\|", 3
+            if ($Parts.Count -ge 2 -and -not [string]::IsNullOrWhiteSpace($Parts[0])) {
+                $VidId = $Parts[0]
+                if (-not $SeenIds.Contains($VidId)) {
+                    $SeenIds.Add($VidId) | Out-Null
+                    $VideoList += [PSCustomObject]@{
+                        Sira   = $Index
+                        Baslik = $Parts[1]
+                        Sure   = if ($Parts.Count -ge 3 -and $Parts[2] -and $Parts[2] -ne "NA") { $Parts[2] } else { "Bilinmiyor" }
+                        ID     = $VidId
+                        Link   = "https://www.youtube.com/watch?v=$VidId"
+                    }
+                    $Index++
+                }
+            }
+        }
+    }
+}
+
+if ($VideoList.Count -eq 0) {
     Show-Message "Videolar listelenemedi! Linki kontrol edin veya videoların erişilebilir olduğundan emin olun." "Hata" "Error"
     exit
 }
 
-$VideoList = @()
-$Index = 1
-foreach ($Line in $RawVideos) {
-    $Parts = $Line -split "\|", 3
-    if ($Parts.Count -ge 2 -and -not [string]::IsNullOrWhiteSpace($Parts[0])) {
-        $VideoList += [PSCustomObject]@{
-            Sira   = $Index
-            Baslik = $Parts[1]
-            Sure   = if ($Parts.Count -ge 3 -and $Parts[2] -and $Parts[2] -ne "NA") { $Parts[2] } else { "Bilinmiyor" }
-            ID     = $Parts[0]
-            Link   = "https://www.youtube.com/watch?v=$($Parts[0])"
-        }
-        $Index++
-    }
-}
+Write-Host "Toplam $($VideoList.Count) video bulundu (Normal + Canlı Yayın Kayıtları)." -ForegroundColor Green
 
-Write-Host "Toplam $($VideoList.Count) video bulundu." -ForegroundColor Green
-
-# 5. ADIM: VİDEO SEÇİMİ
+# 5. ADIM: VİDEO SEÇİMİ (Arama kutusu ile meclis vb. filtrelenebilir)
 if ($VideoList.Count -eq 1) {
     $SelectedVideos = $VideoList
 } else {
-    $SelectedVideos = $VideoList | Out-GridView -Title "İndirmek istediğiniz videoları seçin (Tümü için CTRL+A) ve 'Tamam'a basın" -PassThru
+    $SelectedVideos = $VideoList | Out-GridView -Title "İndirmek istediğiniz videoları seçin. Sağ üstteki arama kutusuna 'meclis' yazıp sadece toplantıları seçebilirsiniz. (Tümü için CTRL+A)" -PassThru
 }
 
 if (-not $SelectedVideos) {
@@ -233,7 +252,7 @@ foreach ($Video in $SelectedVideos) {
         Write-Host "   -> Altyazı bulunamadı." -ForegroundColor DarkYellow
     }
 
-    Start-Sleep -Milliseconds 800
+    Start-Sleep -Milliseconds 600
 }
 
 Write-Host "`nİşlem Tamamlandı! ($SuccessCount / $TotalSelected başarılı)" -ForegroundColor Cyan

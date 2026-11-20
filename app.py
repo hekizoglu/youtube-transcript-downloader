@@ -8,6 +8,7 @@ import webbrowser
 import threading
 from urllib.parse import urlparse, parse_qs
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from concurrent.futures import ThreadPoolExecutor
 import yt_dlp
 
 PORT = 5500
@@ -36,7 +37,6 @@ def sanitize_filename(name: str) -> str:
     return clean[:100]
 
 def format_timestamp(raw_ts: str) -> str:
-    """00:00:03.199 -> 00:03, 01:23:45.000 -> 01:23:45"""
     parts = raw_ts.split(":")
     if len(parts) == 3:
         h, m, s = parts[0], parts[1], parts[2].split(".")[0]
@@ -49,10 +49,6 @@ def format_timestamp(raw_ts: str) -> str:
     return raw_ts
 
 def process_vtt(text: str) -> tuple[str, str]:
-    """
-    YouTube VTT altyazısını işler.
-    Döner: (zaman_damgali_metin, duz_akici_metin)
-    """
     lines = text.splitlines()
     clean_lines_clean = []
     clean_lines_ts = []
@@ -64,7 +60,6 @@ def process_vtt(text: str) -> tuple[str, str]:
         if not s or s.startswith("WEBVTT") or s.startswith("Kind:") or s.startswith("Language:"):
             continue
         
-        # Zaman damgası satırı: "00:00:03.199 --> 00:00:05.430"
         if "-->" in s:
             match = re.match(r"^(\d{2}:\d{2}(?::\d{2})?)", s)
             if match:
@@ -74,12 +69,10 @@ def process_vtt(text: str) -> tuple[str, str]:
         if s.isdigit():
             continue
 
-        # HTML / VTT etiketlerini kaldır (<c>, <00:00:01.000> vb.)
         s = re.sub(r"<[^>]+>", "", s).strip()
         if not s or s == last_line:
             continue
 
-        # Kayan yazı öneki kontrolü (mevcut satır bir önceki satırla başlıyorsa genişlemedir)
         if last_line and s.startswith(last_line):
             if clean_lines_clean:
                 clean_lines_clean[-1] = s
@@ -90,7 +83,6 @@ def process_vtt(text: str) -> tuple[str, str]:
             last_line = s
             continue
 
-        # Kelime bazlı örtüşme kontrolü (önceki satırın son kelimeleri yeni satırın başında tekrarlanıyorsa)
         if last_line:
             w1 = last_line.split()
             w2 = s.split()
@@ -107,10 +99,8 @@ def process_vtt(text: str) -> tuple[str, str]:
             clean_lines_ts.append(f"[{current_ts}] {s}")
             last_line = s
 
-    # Zaman Damgalı Metin
     formatted_ts = "\n".join(clean_lines_ts)
 
-    # Paragraflara ayrılmış düz metin
     full_clean = " ".join(clean_lines_clean)
     sentences = re.split(r'(?<=[.!?])\s+', full_clean)
     paragraphs = []
@@ -224,44 +214,74 @@ class TranscriptServer(BaseHTTPRequestHandler):
         if path == "/api/scan":
             raw_url = payload.get("url", "").strip()
             if not raw_url:
-                self.send_json({"success": False, "error": "Lütfen geçerli bir YouTube URL veya kanal kullanıcı adı girin."}, status=400)
+                self.send_json({"success": False, "error": "Lütfen geçerli bir YouTube URL veya kanal adı girin."}, status=400)
                 return
 
-            if raw_url.startswith("@"):
-                url = f"https://www.youtube.com/{raw_url}/videos"
-            elif (not raw_url.startswith("http://") and not raw_url.startswith("https://")):
-                url = f"https://www.youtube.com/@{raw_url}/videos"
-            elif (
-                "playlist?list=" not in raw_url
-                and "/videos" not in raw_url
-                and "/shorts" not in raw_url
-                and "watch?v=" not in raw_url
-                and "youtu.be/" not in raw_url
-            ):
-                url = raw_url.rstrip("/") + "/videos"
-            else:
-                url = raw_url
+            ydl_opts = {
+                "extract_flat": True,
+                "quiet": True,
+                "no_warnings": True,
+                "ignoreerrors": True,
+            }
 
             try:
-                ydl_opts = {
-                    "extract_flat": True,
-                    "quiet": True,
-                    "no_warnings": True,
-                    "ignoreerrors": True,
-                }
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=False)
+                # 1. Tek video kontrolü (watch?v=, youtu.be/...)
+                if "watch?v=" in raw_url or "youtu.be/" in raw_url:
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(raw_url, download=False)
+                    raw_entries = [info] if info else []
+                    channel_title = (info.get("uploader") or info.get("title") or "Tek Video") if info else "Video"
 
-                if not info:
-                    self.send_json({"success": False, "error": "Verilen bağlantıdan bilgi alınamadı. Linki kontrol edin."}, status=404)
-                    return
+                # 2. Oynatma Listesi kontrolü
+                elif "playlist?list=" in raw_url:
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(raw_url, download=False)
+                    raw_entries = info.get("entries", []) if info else []
+                    channel_title = info.get("title") or "Oynatma Listesi"
 
-                if "entries" in info and info["entries"] is not None:
-                    raw_entries = [e for e in info["entries"] if e]
-                    channel_title = info.get("title") or "YouTube Oynatma Listesi"
+                # 3. Kanal Tarama (Kullanıcı @kanal, kanal URL'si girdiğinde /videos, /streams, /shorts hepsi taranır!)
                 else:
-                    raw_entries = [info]
-                    channel_title = info.get("uploader") or info.get("title") or "Tek Video"
+                    if raw_url.startswith("@"):
+                        channel_base = f"https://www.youtube.com/{raw_url}".rstrip("/")
+                    elif not raw_url.startswith("http://") and not raw_url.startswith("https://"):
+                        channel_base = f"https://www.youtube.com/@{raw_url}".rstrip("/")
+                    else:
+                        # Eğer kullanıcı doğrudan /videos veya /streams girdiyse tab kısmını kaldırıp ana kanala ulaş
+                        channel_base = re.sub(r'/(videos|streams|shorts|featured)$', '', raw_url.rstrip("/"))
+
+                    # Kanal başlığını ve tüm sekmeleri eşzamanlı çek
+                    tabs = ["/videos", "/streams", "/shorts"]
+                    raw_entries = []
+                    seen_ids = set()
+                    channel_title = ""
+
+                    def scan_tab(tab_suffix):
+                        tab_url = channel_base + tab_suffix
+                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                            try:
+                                return ydl.extract_info(tab_url, download=False)
+                            except Exception:
+                                return None
+
+                    with ThreadPoolExecutor(max_workers=3) as executor:
+                        tab_results = list(executor.map(scan_tab, tabs))
+
+                    for res in tab_results:
+                        if res:
+                            if not channel_title and res.get("title"):
+                                # "Kemalpaşa Belediyesi - Videos" -> "Kemalpaşa Belediyesi"
+                                channel_title = re.sub(r'\s*-\s*(Videos|Canlı|Streams|Shorts).*$', '', res.get("title")).strip()
+                            for e in res.get("entries", []) or []:
+                                if e and e.get("id") and e.get("id") not in seen_ids:
+                                    seen_ids.add(e.get("id"))
+                                    raw_entries.append(e)
+
+                    if not channel_title:
+                        channel_title = channel_base.split("/")[-1]
+
+                if not raw_entries:
+                    self.send_json({"success": False, "error": "Bu bağlantıda hiç video bulunamadı. Lütfen URL'yi kontrol edin."}, status=404)
+                    return
 
                 videos = []
                 idx = 1
@@ -307,7 +327,6 @@ class TranscriptServer(BaseHTTPRequestHandler):
             title = payload.get("title", "Video")
             sira = payload.get("sira", 1)
             raw_langs = payload.get("langs", "tr,en")
-            # Varsayılan olarak zaman damgalı modu aktif yap
             with_timestamps = payload.get("timestamps", True)
             force_reload = bool(payload.get("force", False))
 
@@ -320,13 +339,9 @@ class TranscriptServer(BaseHTTPRequestHandler):
             final_txt_path = os.path.join(TRANSCRIPTS_DIR, f"{base_filename}.txt")
 
             existing = get_existing_transcript(video_id, safe_title)
-            # Eğer önceden indirilmişse ve içinde zaman damgası varsa ya da force istenmemişse
             if existing and not force_reload:
                 cached_text = existing[1]
-                # Önceden indirilmiş metinde zaman damgası olup olmadığını kontrol et
                 has_ts = "[" in cached_text and "]" in cached_text and ("00:" in cached_text or "01:" in cached_text)
-                
-                # Eğer kullanıcı zaman damgası istiyor ama eski dosyada yoksa yeniden indir
                 if not (with_timestamps and not has_ts):
                     self.send_json({
                         "success": True,
@@ -350,7 +365,7 @@ class TranscriptServer(BaseHTTPRequestHandler):
 
             for lang in lang_list:
                 temp_tmpl = os.path.join(TRANSCRIPTS_DIR, f"temp_{video_id}_{lang}.%(ext)s")
-                ydl_opts = {
+                ydl_opts_sub = {
                     "skip_download": True,
                     "writesubtitles": True,
                     "writeautomaticsub": True,
@@ -362,7 +377,7 @@ class TranscriptServer(BaseHTTPRequestHandler):
                     "ignoreerrors": True,
                 }
                 try:
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    with yt_dlp.YoutubeDL(ydl_opts_sub) as ydl:
                         ydl.download([video_url])
                 except Exception:
                     pass
@@ -413,8 +428,6 @@ class TranscriptServer(BaseHTTPRequestHandler):
             
             full_ts = header + formatted_ts
             full_clean = header + formatted_clean
-
-            # Dosyaya kaydedilecek versiyon (varsayılan olarak zaman damgalı kaydedilir)
             primary_text = full_ts if with_timestamps else full_clean
 
             with open(final_txt_path, "w", encoding="utf-8") as tf:
