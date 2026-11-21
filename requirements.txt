@@ -1,0 +1,4 @@
+# yt-dlp, YouTube tarafındaki değişikliklere ayak uydurmak için sık güncellenir.
+# baslat.bat her açılışta en son sürüme günceller.
+# [default] eki, YouTube için gereken yt-dlp-ejs bileşenini de kurar.
+yt-dlp[default]>=2026.10.26

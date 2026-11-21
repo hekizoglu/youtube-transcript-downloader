@@ -6,8 +6,10 @@ import io
 import zipfile
 import webbrowser
 import threading
+import subprocess
+import unicodedata
 from urllib.parse import urlparse, parse_qs
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from concurrent.futures import ThreadPoolExecutor
 import yt_dlp
 
@@ -116,29 +118,190 @@ def process_vtt(text: str) -> tuple[str, str]:
 
     return formatted_ts, formatted_clean
 
-def get_existing_transcript(video_id: str, safe_title: str) -> tuple[str, str] | None:
-    for f in os.listdir(TRANSCRIPTS_DIR):
-        if not f.endswith(".txt"):
-            continue
-        if video_id in f or (safe_title and safe_title in f):
-            file_path = os.path.join(TRANSCRIPTS_DIR, f)
-            try:
-                with open(file_path, "r", encoding="utf-8") as tf:
-                    return f, tf.read()
-            except Exception:
-                pass
+TS_LINE_RE = re.compile(r"^\[(\d{1,2}:\d{2}(?::\d{2})?)\]\s*(.*)$")
+LINK_RE = re.compile(r"^Video Linki:\s*(\S+)", re.MULTILINE)
+TITLE_RE = re.compile(r"^Video Başlığı:\s*(.+)$", re.MULTILINE)
+
+
+def build_filename(video_id: str, title: str) -> str:
+    """Dosya adı: 'Başlık [videoID].txt' -> ID sayesinde önbellek eşleşmesi kesin olur."""
+    return f"{sanitize_filename(title)} [{video_id}].txt"
+
+
+def has_timestamps(text: str) -> bool:
+    return any(TS_LINE_RE.match(line) for line in text.splitlines()[:50])
+
+
+def find_existing_file(video_id: str, safe_title: str) -> str | None:
+    """Önce video ID ile, sonra eski formattaki ('001_Başlık.txt') tam başlık eşleşmesiyle arar."""
+    files = [f for f in os.listdir(TRANSCRIPTS_DIR) if f.endswith(".txt")]
+    tag = f"[{video_id}]"
+    for f in files:
+        if tag in f:
+            return f
+    if safe_title:
+        for f in files:
+            stem = f[:-4]
+            if stem == safe_title or re.fullmatch(r"\d{3}_" + re.escape(safe_title), stem):
+                return f
     return None
 
-class TranscriptServer(BaseHTTPRequestHandler):
-    def end_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        super().end_headers()
 
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.end_headers()
+def read_transcript_file(filename: str) -> str | None:
+    try:
+        with open(os.path.join(TRANSCRIPTS_DIR, filename), "r", encoding="utf-8") as tf:
+            return tf.read()
+    except OSError:
+        return None
+
+
+def get_existing_transcript(video_id: str, safe_title: str) -> tuple[str, str] | None:
+    f = find_existing_file(video_id, safe_title)
+    if not f:
+        return None
+    text = read_transcript_file(f)
+    return (f, text) if text is not None else None
+
+
+def pick_subtitle(info: dict, lang_list: list[str]):
+    """Altyazı seçimi. Öncelik:
+    1) Manuel (insan yazımı) altyazı, 2) videonun orijinal dilindeki otomatik altyazı,
+    3) son çare olarak YouTube'un makine çevirisi otomatik altyazı.
+    Dönüş: (dil_kodu, vtt_url, kaynak) veya None
+    """
+    manual = {k: v for k, v in (info.get("subtitles") or {}).items() if k != "live_chat"}
+    auto = info.get("automatic_captions") or {}
+
+    def vtt_url(fmts):
+        for fmt in fmts or []:
+            if fmt.get("ext") == "vtt" and fmt.get("url"):
+                return fmt["url"]
+        return None
+
+    def base(code):
+        return code.split("-")[0].lower()
+
+    # 1. ve 2. tur: manuel ve orijinal otomatik altyazılar
+    for lang in lang_list:
+        lang_l = lang.lower()
+        for key in sorted(manual, key=lambda k: (k.lower() != lang_l, k)):
+            if key.lower() == lang_l or base(key) == lang_l:
+                url = vtt_url(manual[key])
+                if url:
+                    return key, url, "manuel"
+        orig = f"{lang_l}-orig"
+        if orig in auto:
+            url = vtt_url(auto[orig])
+            if url:
+                return lang_l, url, "otomatik"
+        # Orijinal dili bu dil olan videolarda yt-dlp bazen '-orig' eki koymaz
+        if auto and not any(k.endswith("-orig") for k in auto) and info.get("language", "").lower().startswith(lang_l) and lang_l in auto:
+            url = vtt_url(auto[lang_l])
+            if url:
+                return lang_l, url, "otomatik"
+
+    # 3. tur: makine çevirisi
+    for lang in lang_list:
+        lang_l = lang.lower()
+        if lang_l in auto:
+            url = vtt_url(auto[lang_l])
+            if url:
+                return lang_l, url, "otomatik çeviri"
+    return None
+
+
+def normalize_text(s: str) -> str:
+    """Türkçe ve aksan duyarsız küçük harf normalizasyonu (arama için)."""
+    s = s.replace("I", "ı").replace("İ", "i").lower()
+    s = s.replace("ı", "i")
+    s = unicodedata.normalize("NFKD", s)
+    return "".join(c for c in s if not unicodedata.combining(c))
+
+
+def ts_to_seconds(ts: str) -> int:
+    total = 0
+    for part in ts.split(":"):
+        total = total * 60 + int(part)
+    return total
+
+
+def search_transcripts(query: str, max_results: int = 300) -> dict:
+    q = normalize_text(query.strip())
+    if not q:
+        return {"query": query, "total_hits": 0, "files": [], "truncated": False}
+    terms = q.split()
+    results = []
+    total = 0
+    truncated = False
+    for f in sorted(os.listdir(TRANSCRIPTS_DIR)):
+        if not f.endswith(".txt"):
+            continue
+        text = read_transcript_file(f)
+        if not text:
+            continue
+        link_m = LINK_RE.search(text)
+        title_m = TITLE_RE.search(text)
+        link = link_m.group(1) if link_m else None
+        body = text.split("=" * 60, 1)[-1]
+        hits = []
+        for line in body.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            norm = normalize_text(line)
+            if not all(t in norm for t in terms):
+                continue
+            m = TS_LINE_RE.match(line)
+            ts = m.group(1) if m else None
+            snippet = m.group(2) if m else line
+            if not m and len(snippet) > 300:
+                # Düz metin paragraflarında eşleşmenin etrafından kes
+                idx = normalize_text(snippet).find(terms[0])
+                start = max(0, idx - 120)
+                snippet = ("…" if start else "") + snippet[start:start + 260] + "…"
+            hit = {"timestamp": ts, "text": snippet}
+            if link and ts:
+                hit["url"] = f"{link}&t={ts_to_seconds(ts)}s"
+            hits.append(hit)
+            total += 1
+            if total >= max_results:
+                truncated = True
+                break
+        if hits:
+            results.append({
+                "file": f,
+                "title": title_m.group(1).strip() if title_m else f[:-4],
+                "link": link,
+                "hits": hits,
+            })
+        if truncated:
+            break
+    return {"query": query, "total_hits": total, "files": results, "truncated": truncated}
+
+
+def open_in_file_manager(path: str):
+    if sys.platform.startswith("win"):
+        os.startfile(path)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])
+
+
+ALLOWED_HOSTS = ("localhost", "127.0.0.1")
+
+
+class TranscriptServer(BaseHTTPRequestHandler):
+    def _is_local_request(self) -> bool:
+        """Başka bir web sitesinin tarayıcı üzerinden bu yerel API'yi tetiklemesini engeller."""
+        origin = self.headers.get("Origin")
+        if origin:
+            return urlparse(origin).hostname in ALLOWED_HOSTS
+        host = (self.headers.get("Host") or "").rsplit(":", 1)[0]
+        return host in ALLOWED_HOSTS
+
+    def log_message(self, format, *args):
+        pass  # Konsolu her istekte doldurmasın
 
     def send_json(self, data, status=200):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
@@ -151,6 +314,10 @@ class TranscriptServer(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
+
+        if path.startswith("/api/") and not self._is_local_request():
+            self.send_json({"success": False, "error": "Yalnızca yerel istekler kabul edilir."}, status=403)
+            return
 
         if path in ("/", "/index.html"):
             index_path = os.path.join(BASE_DIR, "index.html")
@@ -178,10 +345,27 @@ class TranscriptServer(BaseHTTPRequestHandler):
 
         elif path == "/api/open-folder":
             try:
-                os.startfile(TRANSCRIPTS_DIR)
+                open_in_file_manager(TRANSCRIPTS_DIR)
                 self.send_json({"success": True, "message": "Klasör başarıyla açıldı."})
             except Exception as e:
                 self.send_json({"success": False, "error": str(e)}, status=500)
+            return
+
+        elif path == "/api/transcript":
+            name = os.path.basename(parse_qs(parsed.query).get("file", [""])[0])
+            text = read_transcript_file(name) if name.endswith(".txt") else None
+            if text is None:
+                self.send_json({"success": False, "error": "Dosya bulunamadı."}, status=404)
+                return
+            self.send_json({"success": True, "file": name, "text": text, "has_timestamps": has_timestamps(text)})
+            return
+
+        elif path == "/api/search":
+            query = parse_qs(parsed.query).get("q", [""])[0]
+            if len(query.strip()) < 2:
+                self.send_json({"success": False, "error": "En az 2 karakter girin."}, status=400)
+                return
+            self.send_json({"success": True, **search_transcripts(query)})
             return
 
         elif path == "/api/download-zip":
@@ -207,9 +391,17 @@ class TranscriptServer(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        if not self._is_local_request():
+            self.send_json({"success": False, "error": "Yalnızca yerel istekler kabul edilir."}, status=403)
+            return
+
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length).decode("utf-8")
-        payload = json.loads(body) if body else {}
+        try:
+            payload = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            self.send_json({"success": False, "error": "Geçersiz JSON."}, status=400)
+            return
 
         if path == "/api/scan":
             raw_url = payload.get("url", "").strip()
@@ -296,7 +488,7 @@ class TranscriptServer(BaseHTTPRequestHandler):
                     link = f"https://www.youtube.com/watch?v={vid_id}"
                     
                     safe_title = sanitize_filename(title)
-                    existing = get_existing_transcript(vid_id, safe_title)
+                    existing_file = find_existing_file(vid_id, safe_title)
 
                     videos.append({
                         "sira": idx,
@@ -305,10 +497,9 @@ class TranscriptServer(BaseHTTPRequestHandler):
                         "duration": duration,
                         "thumbnail": thumbnail,
                         "link": link,
-                        "cached": existing is not None,
-                        "filename": existing[0] if existing else None,
-                        "transcript": existing[1] if existing else None,
-                        "status": "success" if existing else "pending"
+                        "cached": existing_file is not None,
+                        "filename": existing_file,
+                        "status": "success" if existing_file else "pending"
                     })
                     idx += 1
 
@@ -325,7 +516,6 @@ class TranscriptServer(BaseHTTPRequestHandler):
         elif path == "/api/download-single":
             video_id = payload.get("id")
             title = payload.get("title", "Video")
-            sira = payload.get("sira", 1)
             raw_langs = payload.get("langs", "tr,en")
             with_timestamps = payload.get("timestamps", True)
             force_reload = bool(payload.get("force", False))
@@ -335,14 +525,13 @@ class TranscriptServer(BaseHTTPRequestHandler):
                 return
 
             safe_title = sanitize_filename(title)
-            base_filename = f"{sira:03d}_{safe_title}"
-            final_txt_path = os.path.join(TRANSCRIPTS_DIR, f"{base_filename}.txt")
+            final_txt_path = os.path.join(TRANSCRIPTS_DIR, build_filename(video_id, title))
 
             existing = get_existing_transcript(video_id, safe_title)
             if existing and not force_reload:
                 cached_text = existing[1]
-                has_ts = "[" in cached_text and "]" in cached_text and ("00:" in cached_text or "01:" in cached_text)
-                if not (with_timestamps and not has_ts):
+                has_ts = has_timestamps(cached_text)
+                if has_ts == bool(with_timestamps):
                     self.send_json({
                         "success": True,
                         "id": video_id,
@@ -360,38 +549,25 @@ class TranscriptServer(BaseHTTPRequestHandler):
                 lang_list = ["tr", "en"]
 
             video_url = f"https://www.youtube.com/watch?v={video_id}"
-            downloaded_vtt_path = None
-            found_lang = None
+            ydl_opts_sub = {"skip_download": True, "quiet": True, "no_warnings": True}
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts_sub) as ydl:
+                    info = ydl.extract_info(video_url, download=False) or {}
+                    picked = pick_subtitle(info, lang_list)
+                    raw_vtt = None
+                    if picked:
+                        found_lang, sub_url, sub_source = picked
+                        raw_vtt = ydl.urlopen(sub_url).read().decode("utf-8", errors="replace")
+            except Exception as e:
+                self.send_json({
+                    "success": False,
+                    "id": video_id,
+                    "title": title,
+                    "error": f"Video bilgisi alınamadı: {str(e)[:300]}"
+                })
+                return
 
-            for lang in lang_list:
-                temp_tmpl = os.path.join(TRANSCRIPTS_DIR, f"temp_{video_id}_{lang}.%(ext)s")
-                ydl_opts_sub = {
-                    "skip_download": True,
-                    "writesubtitles": True,
-                    "writeautomaticsub": True,
-                    "subtitleslangs": [lang],
-                    "subtitlesformat": "vtt",
-                    "outtmpl": temp_tmpl,
-                    "quiet": True,
-                    "no_warnings": True,
-                    "ignoreerrors": True,
-                }
-                try:
-                    with yt_dlp.YoutubeDL(ydl_opts_sub) as ydl:
-                        ydl.download([video_url])
-                except Exception:
-                    pass
-
-                for f in os.listdir(TRANSCRIPTS_DIR):
-                    if f.startswith(f"temp_{video_id}_{lang}") and f.endswith(".vtt"):
-                        downloaded_vtt_path = os.path.join(TRANSCRIPTS_DIR, f)
-                        found_lang = lang
-                        break
-
-                if downloaded_vtt_path:
-                    break
-
-            if not downloaded_vtt_path:
+            if not picked or not raw_vtt:
                 self.send_json({
                     "success": False,
                     "id": video_id,
@@ -399,15 +575,6 @@ class TranscriptServer(BaseHTTPRequestHandler):
                     "error": f"Bu videoda seçilen dillerde ({', '.join(lang_list)}) altyazı veya transkript bulunamadı."
                 })
                 return
-
-            try:
-                with open(downloaded_vtt_path, "r", encoding="utf-8", errors="replace") as vf:
-                    raw_vtt = vf.read()
-            finally:
-                try:
-                    os.remove(downloaded_vtt_path)
-                except OSError:
-                    pass
 
             formatted_ts, formatted_clean = process_vtt(raw_vtt)
             if not formatted_ts and not formatted_clean:
@@ -422,13 +589,20 @@ class TranscriptServer(BaseHTTPRequestHandler):
             header = (
                 f"Video Başlığı: {title}\n"
                 f"Video Linki: {video_url}\n"
-                f"Altyazı Dili: {found_lang.upper()}\n"
+                f"Altyazı Dili: {found_lang.upper()} ({sub_source})\n"
                 + ("=" * 60) + "\n\n"
             )
             
             full_ts = header + formatted_ts
             full_clean = header + formatted_clean
             primary_text = full_ts if with_timestamps else full_clean
+
+            # Aynı videonun eski formattaki ('001_Başlık.txt') dosyasını temizle
+            if existing and existing[0] != os.path.basename(final_txt_path):
+                try:
+                    os.remove(os.path.join(TRANSCRIPTS_DIR, existing[0]))
+                except OSError:
+                    pass
 
             with open(final_txt_path, "w", encoding="utf-8") as tf:
                 tf.write(primary_text)
@@ -439,6 +613,7 @@ class TranscriptServer(BaseHTTPRequestHandler):
                 "cached": False,
                 "title": title,
                 "lang": found_lang,
+                "source": sub_source,
                 "text": primary_text,
                 "text_timestamped": full_ts,
                 "text_clean": full_clean,
@@ -453,7 +628,7 @@ def run():
     selected_port = PORT
     for p in range(PORT, PORT + 20):
         try:
-            server = HTTPServer(("127.0.0.1", p), TranscriptServer)
+            server = ThreadingHTTPServer(("127.0.0.1", p), TranscriptServer)
             selected_port = p
             break
         except OSError:
