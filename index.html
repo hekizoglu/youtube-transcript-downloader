@@ -57,6 +57,10 @@
         </div>
 
         <div class="flex items-center space-x-2 sm:space-x-3">
+          <button onclick="toggleSearchPanel()" class="px-3 py-1.5 rounded-xl text-xs font-medium bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-200 border border-indigo-500/30 transition flex items-center gap-2 shadow-sm" title="İndirilen tüm transkriptlerin içinde ara">
+            <i class="fa-solid fa-magnifying-glass-chart text-indigo-300"></i>
+            <span class="hidden sm:inline">Transkriptlerde Ara</span>
+          </button>
           <button onclick="openFolder()" class="px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800/90 hover:bg-slate-700 text-slate-200 transition flex items-center gap-2 border border-slate-700/80 shadow-sm" title="İndirilen TXT dosyalarının klasörünü aç">
             <i class="fa-regular fa-folder-open text-amber-400"></i>
             <span class="hidden sm:inline">Klasörü Aç</span>
@@ -132,6 +136,27 @@
           </div>
 
         </div>
+      </section>
+
+      <!-- Tam Metin Arama Paneli -->
+      <section id="searchPanel" class="hidden bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+            <i class="fa-solid fa-magnifying-glass-chart text-indigo-400"></i> İndirilen Tüm Transkriptlerde Ara
+          </h2>
+          <button onclick="toggleSearchPanel()" class="text-slate-500 hover:text-white text-sm" title="Kapat"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input type="text" id="globalSearchInput" placeholder="Örn: imar planı, yapay zeka, bütçe..."
+            onkeydown="if(event.key==='Enter') runGlobalSearch()"
+            class="flex-1 bg-slate-950/90 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition">
+          <button id="globalSearchBtn" onclick="runGlobalSearch()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-magnifying-glass"></i> Ara
+          </button>
+        </div>
+        <p class="text-[11px] text-slate-500">Büyük/küçük harf ve Türkçe karakter duyarsızdır (ı/i, ş/s, ç/c...). Birden fazla kelime yazarsanız hepsini içeren satırlar bulunur. Zaman damgalı sonuçlara tıklayınca video o saniyeden açılır.</p>
+        <div id="globalSearchSummary" class="text-xs text-slate-400"></div>
+        <div id="globalSearchResults" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1"></div>
       </section>
 
       <!-- İstatistik ve Durum Kartları -->
@@ -559,7 +584,7 @@
           <td class="p-3.5 text-center">${statusBadge}</td>
           <td class="p-3.5 text-right">
             <div class="flex items-center justify-end gap-1.5">
-              ${video.transcript ? `
+              ${(video.transcript || video.cached) ? `
                 <button onclick="openModal(${index})" class="px-2.5 py-1 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 rounded-lg transition border border-indigo-500/30 flex items-center gap-1 shadow-sm">
                   <i class="fa-regular fa-file-lines"></i> Oku
                 </button>
@@ -752,7 +777,7 @@
               sira: video.sira,
               langs: langs,
               timestamps: timestamps,
-              force: true
+              force: false
             })
           });
 
@@ -843,9 +868,23 @@
       document.getElementById('modalReadingTime').innerHTML = `<i class="fa-regular fa-clock mr-1 text-slate-500"></i>~${readingMinutes} dk okuma`;
     }
 
-    function openModal(index) {
+    async function openModal(index) {
       const v = videos[index];
-      if (!v || !v.transcript) return;
+      if (!v) return;
+      if (!v.transcript && v.filename) {
+        try {
+          const res = await fetch('/api/transcript?file=' + encodeURIComponent(v.filename));
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+          v.transcript = data.text;
+          v.text_timestamped = data.has_timestamps ? data.text : '';
+          v.text_clean = data.has_timestamps ? '' : data.text;
+        } catch (err) {
+          showToast('Transkript dosyası okunamadı: ' + err.message, 'error');
+          return;
+        }
+      }
+      if (!v.transcript) return;
 
       currentModalData = v;
       currentModalView = 'ts';
@@ -954,6 +993,92 @@
     function downloadZip() {
       showToast('ZIP arşivi hazırlanıyor...', 'info');
       window.location.href = '/api/download-zip';
+    }
+
+    // ---- Tam metin arama ----
+    function toggleSearchPanel() {
+      const panel = document.getElementById('searchPanel');
+      panel.classList.toggle('hidden');
+      if (!panel.classList.contains('hidden')) {
+        document.getElementById('globalSearchInput').focus();
+      }
+    }
+
+    function highlightTerms(text, query) {
+      // Türkçe/aksan duyarsız vurgulama: normalize edilmiş metinde eşleşen aralıkları orijinal metne uygula
+      const terms = normalizeTr(query).split(/\s+/).filter(Boolean);
+      const chars = Array.from(text);
+      const norm = chars.map(c => normalizeTr(c) || c);
+      const joined = norm.join('');
+      const marks = new Array(chars.length).fill(false);
+      // normalize edilmiş karakter -> orijinal indeks eşlemesi
+      const map = [];
+      norm.forEach((n, i) => { for (let k = 0; k < n.length; k++) map.push(i); });
+      terms.forEach(t => {
+        let pos = joined.indexOf(t);
+        while (pos !== -1) {
+          for (let k = pos; k < pos + t.length; k++) marks[map[k]] = true;
+          pos = joined.indexOf(t, pos + t.length);
+        }
+      });
+      let out = '', open = false;
+      chars.forEach((c, i) => {
+        if (marks[i] && !open) { out += '<mark>'; open = true; }
+        if (!marks[i] && open) { out += '</mark>'; open = false; }
+        out += escapeHtml(c);
+      });
+      if (open) out += '</mark>';
+      return out;
+    }
+
+    async function runGlobalSearch() {
+      const query = document.getElementById('globalSearchInput').value.trim();
+      const summary = document.getElementById('globalSearchSummary');
+      const container = document.getElementById('globalSearchResults');
+      if (query.length < 2) {
+        showToast('Lütfen en az 2 karakter girin.', 'warning');
+        return;
+      }
+      const btn = document.getElementById('globalSearchBtn');
+      btn.disabled = true;
+      summary.innerText = 'Aranıyor...';
+      container.innerHTML = '';
+      try {
+        const res = await fetch('/api/search?q=' + encodeURIComponent(query));
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Arama başarısız');
+        if (data.total_hits === 0) {
+          summary.innerText = `"${query}" için sonuç bulunamadı.`;
+          return;
+        }
+        summary.innerHTML = `<strong>${data.files.length}</strong> transkriptte <strong>${data.total_hits}</strong> eşleşme` +
+          (data.truncated ? ' <span class="text-amber-400">(ilk sonuçlar gösteriliyor, aramayı daraltın)</span>' : '');
+        data.files.forEach(f => {
+          const card = document.createElement('div');
+          card.className = 'bg-slate-950/60 border border-slate-800 rounded-xl p-4';
+          const hitsHtml = f.hits.map(h => {
+            const ts = h.timestamp
+              ? (h.url
+                  ? `<a href="${escapeHtml(h.url)}" target="_blank" class="font-mono text-[11px] text-indigo-300 hover:text-indigo-200 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded shrink-0">▶ ${escapeHtml(h.timestamp)}</a>`
+                  : `<span class="font-mono text-[11px] text-slate-400 shrink-0">${escapeHtml(h.timestamp)}</span>`)
+              : '';
+            return `<li class="flex items-start gap-2 text-xs text-slate-300 leading-relaxed">${ts}<span>${highlightTerms(h.text, query)}</span></li>`;
+          }).join('');
+          card.innerHTML = `
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <div class="text-sm font-semibold text-slate-100">${escapeHtml(f.title)}</div>
+              <span class="text-[11px] text-slate-500 shrink-0">${f.hits.length} eşleşme</span>
+            </div>
+            ${f.link ? `<a href="${escapeHtml(f.link)}" target="_blank" class="text-[11px] text-slate-500 hover:text-slate-300">${escapeHtml(f.link)}</a>` : ''}
+            <ul class="mt-2 space-y-1.5">${hitsHtml}</ul>`;
+          container.appendChild(card);
+        });
+      } catch (err) {
+        summary.innerText = '';
+        showToast('Arama hatası: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
     }
 
     function escapeHtml(text) {
