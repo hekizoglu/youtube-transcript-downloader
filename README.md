@@ -4,6 +4,18 @@ Bu araç, YouTube kanallarındaki veya oynatma listelerindeki videoların altyaz
 
 ---
 
+## ⚡ Tek Komutla Kurulum (Windows)
+
+**PowerShell**'i açın ve şu satırı yapıştırıp Enter'a basın:
+
+```powershell
+irm https://raw.githubusercontent.com/hekizoglu/youtube-transcript-downloader/main/kurulum.ps1 | iex
+```
+
+Bu komut; Python, Git ve Deno'yu (yoksa) kurar, projeyi `%USERPROFILE%\youtube-transcript-downloader` klasörüne indirir, bağımlılıkları yükler, **masaüstüne ve Başlat menüsüne "YouTube Transkript" kısayolu** ekler ve uygulamayı açar. Aynı komutu tekrar çalıştırmak projeyi günceller.
+
+---
+
 ## 🚀 1. Seçenek: Web Arayüzü (Tavsiye Edilen)
 
 Modern, karanlık modlu, interaktif bir web paneli üzerinden çalışır.
@@ -46,6 +58,7 @@ Eğer tarayıcı kullanmak istemiyorsanız:
 
 ## 📂 Dosya Yapısı
 
+- `kurulum.ps1`: Tek komutla kurulum ve kısayol oluşturma betiği.
 - `baslat.bat`: Web uygulamasını başlatan tek tıkla çalıştırıcı.
 - `app.py`: Yerel Python API ve web sunucusu (`localhost:5500`).
 - `index.html`: Modern Tailwind CSS tabanlı görsel web arayüzü.
