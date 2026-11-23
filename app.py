@@ -132,29 +132,56 @@ def has_timestamps(text: str) -> bool:
     return any(TS_LINE_RE.match(line) for line in text.splitlines()[:50])
 
 
-def find_existing_file(video_id: str, safe_title: str) -> str | None:
+def get_channel_dir(channel_name: str | None = None) -> str:
+    """Kanal ismine özel klasör yolunu döner ve oluşturur."""
+    name = sanitize_filename(channel_name or "").strip()
+    if not name:
+        name = "Genel"
+    target = os.path.join(TRANSCRIPTS_DIR, name)
+    os.makedirs(target, exist_ok=True)
+    return target
+
+
+def find_existing_file(video_id: str, channel_name: str | None = None) -> str | None:
     """Yalnızca benzersiz video ID etiketi ile ([video_id]) tam eşleşme arar.
-    Başlık benzerliklerinden kaynaklanan mükerrer (+1/2 fazla) eşleşmeleri engeller."""
+    Önce ilgili kanal klasörüne bakar, ardından tüm alt klasörleri ve kök klasörü tarar.
+    Dönüş: TRANSCRIPTS_DIR'e göre bağıl yol (örn: 'Kemalpaşa Belediyesi/Başlık [ID].txt')
+    """
     if not os.path.exists(TRANSCRIPTS_DIR):
         return None
-    files = [f for f in os.listdir(TRANSCRIPTS_DIR) if f.endswith(".txt")]
     tag = f"[{video_id}]"
-    for f in files:
-        if tag in f:
-            return f
+
+    # 1. Öncelik: Belirtilen kanal klasörü
+    if channel_name:
+        ch_dir = get_channel_dir(channel_name)
+        if os.path.exists(ch_dir):
+            for f in os.listdir(ch_dir):
+                if f.endswith(".txt") and tag in f:
+                    return f"{os.path.basename(ch_dir)}/{f}"
+
+    # 2. Genel arama: Tüm alt klasörler ve kök klasör
+    for root, dirs, files in os.walk(TRANSCRIPTS_DIR):
+        for f in files:
+            if f.endswith(".txt") and tag in f:
+                rel = os.path.relpath(os.path.join(root, f), TRANSCRIPTS_DIR).replace("\\", "/")
+                return rel
     return None
 
 
-def read_transcript_file(filename: str) -> str | None:
+def read_transcript_file(rel_path: str) -> str | None:
     try:
-        with open(os.path.join(TRANSCRIPTS_DIR, filename), "r", encoding="utf-8") as tf:
+        if os.path.isabs(rel_path):
+            full_path = rel_path
+        else:
+            full_path = os.path.join(TRANSCRIPTS_DIR, rel_path.replace("/", os.sep))
+        with open(full_path, "r", encoding="utf-8") as tf:
             return tf.read()
     except OSError:
         return None
 
 
-def get_existing_transcript(video_id: str, safe_title: str) -> tuple[str, str] | None:
-    f = find_existing_file(video_id, safe_title)
+def get_existing_transcript(video_id: str, channel_name: str | None = None) -> tuple[str, str] | None:
+    f = find_existing_file(video_id, channel_name)
     if not f:
         return None
     text = read_transcript_file(f)
@@ -231,10 +258,19 @@ def search_transcripts(query: str, max_results: int = 300) -> dict:
     results = []
     total = 0
     truncated = False
-    for f in sorted(os.listdir(TRANSCRIPTS_DIR)):
-        if not f.endswith(".txt"):
-            continue
-        text = read_transcript_file(f)
+
+    # Tüm alt klasörlerdeki .txt dosyalarını tara
+    txt_files = []
+    for root, dirs, files in os.walk(TRANSCRIPTS_DIR):
+        for f in files:
+            if f.endswith(".txt"):
+                rel = os.path.relpath(os.path.join(root, f), TRANSCRIPTS_DIR).replace("\\", "/")
+                txt_files.append((rel, os.path.join(root, f)))
+
+    txt_files.sort(key=lambda x: x[0])
+
+    for rel_path, full_path in txt_files:
+        text = read_transcript_file(full_path)
         if not text:
             continue
         link_m = LINK_RE.search(text)
@@ -266,9 +302,11 @@ def search_transcripts(query: str, max_results: int = 300) -> dict:
                 truncated = True
                 break
         if hits:
+            channel_name = os.path.dirname(rel_path) or "Genel"
             results.append({
-                "file": f,
-                "title": title_m.group(1).strip() if title_m else f[:-4],
+                "file": rel_path,
+                "channel": channel_name,
+                "title": title_m.group(1).strip() if title_m else os.path.basename(rel_path)[:-4],
                 "link": link,
                 "hits": hits,
             })
@@ -278,12 +316,20 @@ def search_transcripts(query: str, max_results: int = 300) -> dict:
 
 
 def open_in_file_manager(path: str):
+    norm = os.path.normpath(os.path.abspath(path))
     if sys.platform.startswith("win"):
-        os.startfile(path)
+        try:
+            # 1. Windows Gezgini'ni doğrudan klasör yoluyla başlat
+            subprocess.Popen(f'explorer.exe "{norm}"', shell=True)
+        except Exception:
+            try:
+                os.startfile(norm)
+            except Exception:
+                pass
     elif sys.platform == "darwin":
-        subprocess.Popen(["open", path])
+        subprocess.Popen(["open", norm])
     else:
-        subprocess.Popen(["xdg-open", path])
+        subprocess.Popen(["xdg-open", norm])
 
 
 ALLOWED_HOSTS = ("localhost", "127.0.0.1")
@@ -332,7 +378,12 @@ class TranscriptServer(BaseHTTPRequestHandler):
             return
 
         elif path == "/api/status":
-            txt_files = [f for f in os.listdir(TRANSCRIPTS_DIR) if f.endswith(".txt")]
+            txt_files = []
+            for root, dirs, files in os.walk(TRANSCRIPTS_DIR):
+                for f in files:
+                    if f.endswith(".txt"):
+                        rel = os.path.relpath(os.path.join(root, f), TRANSCRIPTS_DIR).replace("\\", "/")
+                        txt_files.append(rel)
             self.send_json({
                 "status": "ready",
                 "output_dir": TRANSCRIPTS_DIR,
@@ -343,19 +394,39 @@ class TranscriptServer(BaseHTTPRequestHandler):
 
         elif path == "/api/open-folder":
             try:
-                open_in_file_manager(TRANSCRIPTS_DIR)
-                self.send_json({"success": True, "message": "Klasör başarıyla açıldı."})
+                channel = parse_qs(parsed.query).get("channel", [""])[0]
+                if channel:
+                    target_dir = get_channel_dir(channel)
+                else:
+                    target_dir = TRANSCRIPTS_DIR
+                norm_dir = os.path.normpath(os.path.abspath(target_dir))
+                open_in_file_manager(norm_dir)
+                txt_count = 0
+                for root, dirs, files in os.walk(norm_dir):
+                    txt_count += len([f for f in files if f.endswith(".txt")])
+                self.send_json({
+                    "success": True,
+                    "message": "Klasör açma komutu çalıştırıldı.",
+                    "path": norm_dir,
+                    "channel": channel or "Tüm Kanallar",
+                    "count": txt_count
+                })
             except Exception as e:
                 self.send_json({"success": False, "error": str(e)}, status=500)
             return
 
         elif path == "/api/transcript":
-            name = os.path.basename(parse_qs(parsed.query).get("file", [""])[0])
-            text = read_transcript_file(name) if name.endswith(".txt") else None
+            raw_file = parse_qs(parsed.query).get("file", [""])[0].strip()
+            # Yol güvenlik kontrolü: TRANSCRIPTS_DIR dışına çıkışları engelle
+            clean_rel = os.path.normpath(raw_file).replace("\\", "/").lstrip("/")
+            if clean_rel.startswith("../") or "/../" in clean_rel:
+                self.send_json({"success": False, "error": "Geçersiz dosya yolu."}, status=400)
+                return
+            text = read_transcript_file(clean_rel) if clean_rel.endswith(".txt") else None
             if text is None:
                 self.send_json({"success": False, "error": "Dosya bulunamadı."}, status=404)
                 return
-            self.send_json({"success": True, "file": name, "text": text, "has_timestamps": has_timestamps(text)})
+            self.send_json({"success": True, "file": clean_rel, "text": text, "has_timestamps": has_timestamps(text)})
             return
 
         elif path == "/api/search":
@@ -367,17 +438,31 @@ class TranscriptServer(BaseHTTPRequestHandler):
             return
 
         elif path == "/api/download-zip":
-            txt_files = [f for f in os.listdir(TRANSCRIPTS_DIR) if f.endswith(".txt")]
+            channel = parse_qs(parsed.query).get("channel", [""])[0]
             zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                for file_name in txt_files:
-                    file_path = os.path.join(TRANSCRIPTS_DIR, file_name)
-                    zip_file.write(file_path, arcname=file_name)
+            zip_filename = "youtube_transkriptleri.zip"
             
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                if channel:
+                    ch_dir = get_channel_dir(channel)
+                    safe_ch = sanitize_filename(channel)
+                    zip_filename = f"{safe_ch}_transkriptler.zip"
+                    for f in os.listdir(ch_dir):
+                        if f.endswith(".txt"):
+                            file_path = os.path.join(ch_dir, f)
+                            zip_file.write(file_path, arcname=f)
+                else:
+                    for root, dirs, files in os.walk(TRANSCRIPTS_DIR):
+                        for f in files:
+                            if f.endswith(".txt"):
+                                file_path = os.path.join(root, f)
+                                rel = os.path.relpath(file_path, TRANSCRIPTS_DIR)
+                                zip_file.write(file_path, arcname=rel)
+
             zip_data = zip_buffer.getvalue()
             self.send_response(200)
             self.send_header("Content-Type", "application/zip")
-            self.send_header("Content-Disposition", 'attachment; filename="youtube_transkriptleri.zip"')
+            self.send_header("Content-Disposition", f'attachment; filename="{zip_filename}"')
             self.send_header("Content-Length", str(len(zip_data)))
             self.end_headers()
             self.wfile.write(zip_data)
@@ -486,7 +571,7 @@ class TranscriptServer(BaseHTTPRequestHandler):
                     link = f"https://www.youtube.com/watch?v={vid_id}"
                     
                     safe_title = sanitize_filename(title)
-                    existing_file = find_existing_file(vid_id, safe_title)
+                    existing_file = find_existing_file(vid_id, channel_title)
 
                     videos.append({
                         "sira": idx,
@@ -495,6 +580,7 @@ class TranscriptServer(BaseHTTPRequestHandler):
                         "duration": duration,
                         "thumbnail": thumbnail,
                         "link": link,
+                        "channel": channel_title,
                         "cached": existing_file is not None,
                         "filename": existing_file,
                         "status": "cached" if existing_file else "pending"
@@ -527,6 +613,7 @@ class TranscriptServer(BaseHTTPRequestHandler):
         elif path == "/api/download-single":
             video_id = payload.get("id")
             title = payload.get("title", "Video")
+            channel_name = payload.get("channel") or payload.get("channel_title") or "Genel"
             raw_langs = payload.get("langs", "tr,en")
             with_timestamps = payload.get("timestamps", True)
             force_reload = bool(payload.get("force", False))
@@ -535,10 +622,12 @@ class TranscriptServer(BaseHTTPRequestHandler):
                 self.send_json({"success": False, "error": "Video ID eksik"}, status=400)
                 return
 
-            safe_title = sanitize_filename(title)
-            final_txt_path = os.path.join(TRANSCRIPTS_DIR, build_filename(video_id, title))
+            channel_dir = get_channel_dir(channel_name)
+            filename = build_filename(video_id, title)
+            final_txt_path = os.path.join(channel_dir, filename)
+            rel_file_path = f"{os.path.basename(channel_dir)}/{filename}"
 
-            existing = get_existing_transcript(video_id, safe_title)
+            existing = get_existing_transcript(video_id, channel_name)
             if existing and not force_reload:
                 cached_text = existing[1]
                 has_ts = has_timestamps(cached_text)
@@ -548,6 +637,7 @@ class TranscriptServer(BaseHTTPRequestHandler):
                         "id": video_id,
                         "cached": True,
                         "title": title,
+                        "channel": channel_name,
                         "text": cached_text,
                         "text_timestamped": cached_text if has_ts else "",
                         "text_clean": cached_text if not has_ts else "",
@@ -608,10 +698,12 @@ class TranscriptServer(BaseHTTPRequestHandler):
             full_clean = header + formatted_clean
             primary_text = full_ts if with_timestamps else full_clean
 
-            # Aynı videonun eski formattaki ('001_Başlık.txt') dosyasını temizle
-            if existing and existing[0] != os.path.basename(final_txt_path):
+            # Eski dosya farklı bir yerde veya isimdeyse temizle
+            if existing and existing[0] != rel_file_path:
                 try:
-                    os.remove(os.path.join(TRANSCRIPTS_DIR, existing[0]))
+                    old_path = os.path.join(TRANSCRIPTS_DIR, existing[0].replace("/", os.sep))
+                    if os.path.exists(old_path) and os.path.abspath(old_path) != os.path.abspath(final_txt_path):
+                        os.remove(old_path)
                 except OSError:
                     pass
 
@@ -623,12 +715,13 @@ class TranscriptServer(BaseHTTPRequestHandler):
                 "id": video_id,
                 "cached": False,
                 "title": title,
+                "channel": channel_name,
                 "lang": found_lang,
                 "source": sub_source,
                 "text": primary_text,
                 "text_timestamped": full_ts,
                 "text_clean": full_clean,
-                "file": os.path.basename(final_txt_path)
+                "file": rel_file_path
             })
             return
 

@@ -370,6 +370,54 @@
         </div>
       </div>
 
+      <!-- Klasör Bilgi Modalı -->
+      <div id="folderModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg">
+                <i class="fa-regular fa-folder-open"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-100 text-base" id="folderModalTitle">Transkript Klasörü</h3>
+                <p class="text-xs text-slate-400" id="folderModalSubtitle">Dosyalarınız bu klasörde saklanmaktadır.</p>
+              </div>
+            </div>
+            <button onclick="closeFolderModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          <div class="space-y-2">
+            <label class="text-xs font-semibold text-slate-400">Tam Klasör Yolu (Panoya Otomatik Kopyalandı):</label>
+            <div class="flex items-center gap-2">
+              <input type="text" id="folderPathInput" readonly class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-emerald-400 select-all outline-none">
+              <button onclick="copyFolderPath()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-md">
+                <i class="fa-regular fa-copy" id="copyFolderIcon"></i> <span id="copyFolderBtnText">Kopyala</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="p-3.5 bg-slate-950/70 border border-slate-800/80 rounded-xl text-xs text-slate-400 space-y-1.5 leading-relaxed">
+            <div class="font-semibold text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-lightbulb text-amber-400"></i> Windows Gezgini Arkada Kaldıysa:
+            </div>
+            <p>1. Klavyeden <kbd class="px-1.5 py-0.5 bg-slate-800 text-slate-200 rounded border border-slate-700 font-mono">Win + R</kbd> tuşuna basın.</p>
+            <p>2. Açılan kutucuğa <kbd class="px-1.5 py-0.5 bg-slate-800 text-slate-200 rounded border border-slate-700 font-mono">Ctrl + V</kbd> ile yolu yapıştırıp <kbd class="px-1.5 py-0.5 bg-slate-800 text-slate-200 rounded border border-slate-700 font-mono">Enter</kbd>'a basın.</p>
+            <p>3. Veya proje dizinindeki <span class="text-indigo-300 font-mono font-bold">Klasoru_Ac.bat</span> dosyasına çift tıklayabilirsiniz.</p>
+          </div>
+
+          <div class="flex items-center justify-between pt-2">
+            <button onclick="downloadZip()" class="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 underline decoration-dotted font-medium">
+              <i class="fa-solid fa-file-zipper"></i> Tümünü ZIP Olarak İndir
+            </button>
+            <button onclick="closeFolderModal()" class="px-5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white transition">
+              Kapat
+            </button>
+          </div>
+        </div>
+      </div>
+
     </main>
   </div>
 
@@ -384,6 +432,7 @@
     let shouldStop = false;
     let currentModalData = null;
     let currentModalView = 'ts';
+    let currentChannelTitle = '';
 
     // Türkçe ve aksan duyarsız normalizasyon
     function normalizeTr(str) {
@@ -478,6 +527,7 @@
         const data = await res.json();
 
         if (data.success && data.videos.length > 0) {
+          currentChannelTitle = data.channel_title || '';
           videos = data.videos.map(v => ({
             ...v,
             selected: true,
@@ -737,6 +787,7 @@
           body: JSON.stringify({
             id: video.id,
             title: video.title,
+            channel: video.channel || currentChannelTitle || "Genel",
             sira: video.sira,
             langs: langs,
             timestamps: timestamps,
@@ -812,6 +863,7 @@
             body: JSON.stringify({
               id: video.id,
               title: video.title,
+              channel: video.channel || currentChannelTitle || "Genel",
               sira: video.sira,
               langs: langs,
               timestamps: timestamps,
@@ -1015,14 +1067,51 @@
       showToast('TXT dosyası indirildi.', 'info');
     }
 
+    function showFolderModal(path, count, channel) {
+      const modal = document.getElementById('folderModal');
+      const input = document.getElementById('folderPathInput');
+      const title = document.getElementById('folderModalTitle');
+      const sub = document.getElementById('folderModalSubtitle');
+      if (input) input.value = path;
+      if (title) title.innerText = channel ? `📁 ${channel} Klasörü` : '📁 Transkript Klasörü';
+      if (sub) sub.innerText = count !== undefined ? `Bu klasörde ${count} adet transkript TXT dosyası bulunuyor.` : 'Dosyalarınız bu klasörde saklanmaktadır.';
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeFolderModal() {
+      const modal = document.getElementById('folderModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function copyFolderPath() {
+      const input = document.getElementById('folderPathInput');
+      if (!input) return;
+      navigator.clipboard.writeText(input.value).then(() => {
+        const icon = document.getElementById('copyFolderIcon');
+        const text = document.getElementById('copyFolderBtnText');
+        if (icon) icon.className = 'fa-solid fa-check text-emerald-400';
+        if (text) text.innerText = 'Kopyalandı!';
+        setTimeout(() => {
+          if (icon) icon.className = 'fa-regular fa-copy';
+          if (text) text.innerText = 'Kopyala';
+        }, 2000);
+        showToast('Klasör yolu panoya kopyalandı.', 'success');
+      });
+    }
+
     async function openFolder() {
       try {
-        const res = await fetch('/api/open-folder');
+        const query = currentChannelTitle ? ('?channel=' + encodeURIComponent(currentChannelTitle)) : '';
+        const res = await fetch('/api/open-folder' + query);
         const data = await res.json();
-        if (data.success) {
-          showToast('Kayıt klasörü Windows Gezgini ile açıldı.', 'success');
+        if (data.success && data.path) {
+          try {
+            await navigator.clipboard.writeText(data.path);
+          } catch (_) {}
+          showFolderModal(data.path, data.count, data.channel);
+          showToast(`Klasör açma komutu verildi. Yol panoya kopyalandı!`, 'success');
         } else {
-          showToast('Klasör açılamadı: ' + data.error, 'error');
+          showToast('Klasör açılamadı: ' + (data.error || 'Bilinmeyen hata'), 'error');
         }
       } catch (e) {
         showToast('Klasör açılamadı: ' + e.message, 'error');
@@ -1030,8 +1119,9 @@
     }
 
     function downloadZip() {
+      const query = currentChannelTitle ? ('?channel=' + encodeURIComponent(currentChannelTitle)) : '';
       showToast('ZIP arşivi hazırlanıyor...', 'info');
-      window.location.href = '/api/download-zip';
+      window.location.href = '/api/download-zip' + query;
     }
 
     // ---- Tam metin arama ----
