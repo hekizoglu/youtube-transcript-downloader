@@ -8,7 +8,7 @@ import webbrowser
 import threading
 import subprocess
 import unicodedata
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from concurrent.futures import ThreadPoolExecutor
 from collections import Counter
@@ -718,6 +718,48 @@ class TranscriptServer(BaseHTTPRequestHandler):
             self.send_json({"success": True, "path": CLIPS_DIR})
             return
 
+        elif path == "/api/list-clips":
+            clips = []
+            if os.path.exists(CLIPS_DIR):
+                for root, dirs, files in os.walk(CLIPS_DIR):
+                    for f in files:
+                        if f.lower().endswith((".mp4", ".mkv", ".webm")):
+                            full_p = os.path.join(root, f)
+                            rel_p = os.path.relpath(full_p, CLIPS_DIR).replace("\\", "/")
+                            channel_folder = rel_p.split("/")[0] if "/" in rel_p else "Genel"
+                            stat = os.stat(full_p)
+                            clips.append({
+                                "filename": f,
+                                "relative_path": rel_p,
+                                "channel": channel_folder,
+                                "size_bytes": stat.st_size,
+                                "size_formatted": f"{stat.st_size / (1024 * 1024):.2f} MB",
+                                "mtime": stat.st_mtime
+                            })
+            clips.sort(key=lambda x: x["mtime"], reverse=True)
+            self.send_json({"success": True, "count": len(clips), "clips": clips})
+            return
+
+        elif path.startswith("/clips/"):
+            # Kesit videosunu doğrudan tarayıcıda oynatabilmek için stream et
+            rel_clip_path = unquote(path[len("/clips/"):])
+            # Güvenlik kontrolü (path traversal engelleme)
+            safe_clip_path = os.path.normpath(os.path.join(CLIPS_DIR, rel_clip_path))
+            if not safe_clip_path.startswith(os.path.abspath(CLIPS_DIR)) or not os.path.exists(safe_clip_path):
+                self.send_error(404, "Kesit dosyası bulunamadı")
+                return
+
+            size = os.path.getsize(safe_clip_path)
+            self.send_response(200)
+            self.send_header("Content-Type", "video/mp4")
+            self.send_header("Content-Length", str(size))
+            self.send_header("Accept-Ranges", "bytes")
+            self.end_headers()
+            with open(safe_clip_path, "rb") as f:
+                while chunk := f.read(65536):
+                    self.wfile.write(chunk)
+            return
+
         elif path == "/api/download-zip":
             channel = parse_qs(parsed.query).get("channel", [""])[0]
             zip_buffer = io.BytesIO()
@@ -1044,6 +1086,22 @@ class TranscriptServer(BaseHTTPRequestHandler):
                 })
             except Exception as e:
                 self.send_json({"success": False, "error": f"Kesit indirme hatası: {str(e)}"}, status=500)
+            return
+
+        elif path == "/api/delete-clip":
+            rel_clip_path = payload.get("relative_path", "").strip()
+            if not rel_clip_path:
+                self.send_json({"success": False, "error": "Dosya yolu belirtilmedi."}, status=400)
+                return
+            safe_clip_path = os.path.normpath(os.path.join(CLIPS_DIR, rel_clip_path))
+            if not safe_clip_path.startswith(os.path.abspath(CLIPS_DIR)) or not os.path.exists(safe_clip_path):
+                self.send_json({"success": False, "error": "Dosya bulunamadı."}, status=404)
+                return
+            try:
+                os.remove(safe_clip_path)
+                self.send_json({"success": True, "deleted": rel_clip_path})
+            except Exception as e:
+                self.send_json({"success": False, "error": f"Dosya silinemedi: {str(e)}"}, status=500)
             return
 
         self.send_error(404, "Endpoint bulunamadi")

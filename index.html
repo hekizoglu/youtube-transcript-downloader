@@ -57,21 +57,9 @@
         </div>
 
         <div class="flex items-center space-x-2 sm:space-x-3">
-          <button onclick="openClipsFolder()" class="px-3 py-1.5 rounded-xl text-xs font-medium bg-rose-600/20 hover:bg-rose-600/30 text-rose-200 border border-rose-500/30 transition flex items-center gap-2 shadow-sm" title="İndirilen MP4 video kesitlerinin klasörünü aç">
-            <i class="fa-solid fa-scissors text-rose-400"></i>
-            <span class="hidden sm:inline">Kesitler Klasörü</span>
-          </button>
-          <button onclick="toggleWordCloudSection()" class="px-3 py-1.5 rounded-xl text-xs font-medium bg-purple-600/20 hover:bg-purple-600/30 text-purple-200 border border-purple-500/30 transition flex items-center gap-2 shadow-sm" title="Transkriptlerde en sık geçen anahtar kelimeleri ve kelime bulutunu incele">
-            <i class="fa-solid fa-cloud text-purple-300"></i>
-            <span class="hidden sm:inline">Kelime Havuzu</span>
-          </button>
-          <button onclick="toggleSearchPanel()" class="px-3 py-1.5 rounded-xl text-xs font-medium bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-200 border border-indigo-500/30 transition flex items-center gap-2 shadow-sm" title="İndirilen tüm transkriptlerin içinde ara">
-            <i class="fa-solid fa-magnifying-glass-chart text-indigo-300"></i>
-            <span class="hidden sm:inline">Transkriptlerde Ara</span>
-          </button>
           <button onclick="openFolder()" class="px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800/90 hover:bg-slate-700 text-slate-200 transition flex items-center gap-2 border border-slate-700/80 shadow-sm" title="İndirilen TXT dosyalarının klasörünü aç">
             <i class="fa-regular fa-folder-open text-amber-400"></i>
-            <span class="hidden sm:inline">Klasörü Aç</span>
+            <span class="hidden sm:inline">Transkript Klasörü</span>
           </button>
           <button onclick="downloadZip()" class="px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 transition flex items-center gap-2 shadow-sm" title="Tüm transkriptleri tek zip olarak indir">
             <i class="fa-solid fa-file-zipper text-emerald-400"></i>
@@ -79,186 +67,298 @@
           </button>
         </div>
       </div>
+
+      <!-- Ana Gezinme Sekmeleri (Sayfa Değiştirici) -->
+      <div class="max-w-7xl mx-auto px-4 border-t border-slate-800/80 flex items-center gap-1 sm:gap-2 overflow-x-auto py-2">
+        <button id="navTabScanner" onclick="switchMainTab('scanner')" class="nav-tab px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-2 bg-indigo-600 text-white shadow-md shadow-indigo-600/20 shrink-0">
+          <i class="fa-solid fa-list-check"></i>
+          <span>1. Kanal Transkriptleri</span>
+        </button>
+        <button id="navTabSearch" onclick="switchMainTab('search')" class="nav-tab px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-800/80 shrink-0">
+          <i class="fa-solid fa-magnifying-glass-chart text-indigo-400"></i>
+          <span>2. Transkriptlerde Ara & Kesit Çıkar</span>
+        </button>
+        <button id="navTabWordPool" onclick="switchMainTab('wordpool')" class="nav-tab px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-800/80 shrink-0">
+          <i class="fa-solid fa-cloud text-purple-400"></i>
+          <span>3. Kelime Havuzu</span>
+        </button>
+        <button id="navTabClips" onclick="switchMainTab('clips')" class="nav-tab px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-800/80 shrink-0">
+          <i class="fa-solid fa-scissors text-rose-400"></i>
+          <span>4. Kesitler Galerisi & İndirilenler</span>
+          <span id="clipsCountBadge" class="hidden text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">0</span>
+        </button>
+      </div>
+      </div>
     </header>
 
     <!-- Ana İçerik -->
     <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
-      <!-- 1. Adım: Arama ve Yapılandırma Kartı -->
-      <section class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-        <div class="absolute -top-20 -right-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+      <!-- ========================================== -->
+      <!-- BÖLÜM 1: KANAL TARAMA VE TRANSKRİPT İNDİRME -->
+      <!-- ========================================== -->
+      <div id="sectionScanner" class="tab-content space-y-6">
+        <!-- 1. Adım: Arama ve Yapılandırma Kartı -->
+        <section class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+          <div class="absolute -top-20 -right-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-end">
-          
-          <!-- URL Girişi -->
-          <div class="lg:col-span-6 space-y-2">
-            <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              <i class="fa-solid fa-link text-indigo-400 mr-1"></i> YouTube Kanalı, Oynatma Listesi veya Video Linki
-            </label>
-            <div class="relative">
-              <input type="text" id="urlInput" value="@kemalpasabelediyesi" placeholder="Örn: @kemalpasabelediyesi veya https://www.youtube.com/..." 
-                class="w-full bg-slate-950/90 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition pl-10 pr-20 shadow-inner">
-              <i class="fa-brands fa-youtube absolute left-3.5 top-3.5 text-slate-500"></i>
-              <button onclick="clearUrl()" class="absolute right-2.5 top-2.5 px-2 py-1 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition">
-                Temizle
-              </button>
-            </div>
-            <!-- Hızlı Örnekler -->
-            <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 pt-1">
-              <span class="text-slate-500">Örnekler:</span>
-              <button onclick="setUrl('@kemalpasabelediyesi')" class="hover:text-indigo-300 underline decoration-dotted text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">@kemalpasabelediyesi (99 Video)</button>
-              <button onclick="setUrl('https://www.youtube.com/watch?v=rcvNmvVbfNs')" class="hover:text-indigo-300 underline decoration-dotted text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">Tek Video</button>
-              <button onclick="setUrl('@BarisOzcan')" class="hover:text-indigo-300 underline decoration-dotted text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">@BarisOzcan</button>
-            </div>
-          </div>
-
-          <!-- Dil Tercihleri -->
-          <div class="lg:col-span-3 space-y-2">
-            <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              <i class="fa-solid fa-language text-indigo-400 mr-1"></i> Altyazı Dilleri (Sırayla Aranır)
-            </label>
-            <input type="text" id="langsInput" value="tr,en" placeholder="tr,en,de"
-              class="w-full bg-slate-950/90 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-4 py-3 text-sm text-white outline-none transition shadow-inner">
-            <div class="flex items-center gap-1.5 pt-1">
-              <button onclick="setLang('tr,en')" class="text-[11px] px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition">TR + EN</button>
-              <button onclick="setLang('tr')" class="text-[11px] px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Sadece TR</button>
-              <button onclick="setLang('en')" class="text-[11px] px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Sadece EN</button>
-            </div>
-          </div>
-
-          <!-- Format Tercihi & Tara Butonu -->
-          <div class="lg:col-span-3 flex flex-col gap-2">
-            <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
-              <span>Zaman Damgası:</span>
-              <label class="inline-flex items-center cursor-pointer">
-                <input type="checkbox" id="timestampsCheckbox" class="sr-only peer" checked>
-                <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
-                <span class="ml-2 text-xs font-semibold text-emerald-400" id="timestampLabel">⏱️ Zaman Damgalı</span>
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-end">
+            
+            <!-- URL Girişi -->
+            <div class="lg:col-span-6 space-y-2">
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <i class="fa-solid fa-link text-indigo-400 mr-1"></i> YouTube Kanalı, Oynatma Listesi veya Video Linki
               </label>
+              <div class="relative">
+                <input type="text" id="urlInput" value="@kemalpasabelediyesi" placeholder="Örn: @kemalpasabelediyesi veya https://www.youtube.com/..." 
+                  class="w-full bg-slate-950/90 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition pl-10 pr-20 shadow-inner">
+                <i class="fa-brands fa-youtube absolute left-3.5 top-3.5 text-slate-500"></i>
+                <button onclick="clearUrl()" class="absolute right-2.5 top-2.5 px-2 py-1 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition">
+                  Temizle
+                </button>
+              </div>
+              <!-- Hızlı Örnekler -->
+              <div class="flex flex-wrap items-center gap-1.5 text-xs text-slate-400 pt-1">
+                <span class="text-slate-500">Örnekler:</span>
+                <button onclick="setUrl('@kemalpasabelediyesi')" class="hover:text-indigo-300 underline decoration-dotted text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">@kemalpasabelediyesi (99 Video)</button>
+                <button onclick="setUrl('https://www.youtube.com/watch?v=rcvNmvVbfNs')" class="hover:text-indigo-300 underline decoration-dotted text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">Tek Video</button>
+                <button onclick="setUrl('@BarisOzcan')" class="hover:text-indigo-300 underline decoration-dotted text-slate-300 bg-slate-800/60 px-2 py-0.5 rounded">@BarisOzcan</button>
+              </div>
             </div>
-            <button id="scanBtn" onclick="startScan()" 
-              class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2">
-              <i class="fa-solid fa-magnifying-glass"></i>
-              <span>Tüm Videoları Bul</span>
-            </button>
-          </div>
 
-        </div>
-      </section>
-
-      <!-- Tam Metin Arama & Görsel Kelime Havuzu Paneli -->
-      <section id="searchPanel" class="hidden bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
-        <div class="flex items-center justify-between gap-3 border-b border-slate-800 pb-4">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-lg">
-              <i class="fa-solid fa-magnifying-glass-chart"></i>
+            <!-- Dil Tercihleri -->
+            <div class="lg:col-span-3 space-y-2">
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <i class="fa-solid fa-language text-indigo-400 mr-1"></i> Altyazı Dilleri (Sırayla Aranır)
+              </label>
+              <input type="text" id="langsInput" value="tr,en" placeholder="tr,en,de"
+                class="w-full bg-slate-950/90 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-4 py-3 text-sm text-white outline-none transition shadow-inner">
+              <div class="flex items-center gap-1.5 pt-1">
+                <button onclick="setLang('tr,en')" class="text-[11px] px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition">TR + EN</button>
+                <button onclick="setLang('tr')" class="text-[11px] px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Sadece TR</button>
+                <button onclick="setLang('en')" class="text-[11px] px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Sadece EN</button>
+              </div>
             </div>
-            <div>
-              <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
-                Transkript Arama & Görsel Kelime Havuzu
-                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">%100 Yerel / Sıfır Maliyet</span>
-              </h2>
-              <p class="text-xs text-slate-400">İndirilen tüm transkriptlerde tam metin ve yazım toleranslı (benzerlik) arama yapın.</p>
-            </div>
-          </div>
-          <button onclick="toggleSearchPanel()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="Kapat">
-            <i class="fa-solid fa-xmark"></i>
-          </button>
-        </div>
 
-        <!-- Arama Giriş Alanı -->
-        <div class="space-y-3">
-          <div class="flex flex-col sm:flex-row gap-2">
-            <div class="relative flex-1">
-              <input type="text" id="globalSearchInput" placeholder="Örn: armutlu, imar planı, bütçe, ulucak..."
-                onkeydown="if(event.key==='Enter') runGlobalSearch()"
-                class="w-full bg-slate-950/90 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition pl-10 pr-10 shadow-inner">
-              <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-500 text-sm"></i>
-              <button onclick="document.getElementById('globalSearchInput').value=''; document.getElementById('globalSearchInput').focus();" class="absolute right-3 top-3 text-slate-500 hover:text-slate-300 text-xs" title="Arama kutusunu temizle">
-                <i class="fa-solid fa-circle-xmark"></i>
+            <!-- Format Tercihi & Tara Butonu -->
+            <div class="lg:col-span-3 flex flex-col gap-2">
+              <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                <span>Zaman Damgası:</span>
+                <label class="inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="timestampsCheckbox" class="sr-only peer" checked>
+                  <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                  <span class="ml-2 text-xs font-semibold text-emerald-400" id="timestampLabel">⏱️ Zaman Damgalı</span>
+                </label>
+              </div>
+              <button id="scanBtn" onclick="startScan()" 
+                class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <span>Tüm Videoları Bul</span>
               </button>
             </div>
-            <button id="globalSearchBtn" onclick="runGlobalSearch()" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-sm font-semibold px-6 py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
-              <i class="fa-solid fa-magnifying-glass"></i>
-              <span>Ara</span>
-            </button>
+
+          </div>
+        </section>
+
+        </div>
+        <!-- Tablo Sonu -->
+      </div>
+      <!-- BÖLÜM 1 SONU -->
+
+      <!-- ========================================== -->
+      <!-- BÖLÜM 2: TRANSKRİPTLERDE ARAMA VE KESİTLER -->
+      <!-- ========================================== -->
+      <div id="sectionSearch" class="tab-content hidden space-y-6">
+        <section class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-lg">
+                <i class="fa-solid fa-magnifying-glass-chart"></i>
+              </div>
+              <div>
+                <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                  Transkriptlerde Arama & Video Kesit Çıkarıcı
+                  <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">HD / 4K MP4</span>
+                </h2>
+                <p class="text-xs text-slate-400">İndirilen tüm transkriptlerde tam metin ve benzerlik (fuzzy) araması yapın, çıkan sonuçları tek tek veya toplu olarak indirin.</p>
+              </div>
+            </div>
           </div>
 
-          <!-- Gelişmiş / Benzerlik (Fuzzy) Arama Ayarları Barı -->
-          <div class="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-950/60 border border-slate-800/80 rounded-xl text-xs">
-            <div class="flex flex-wrap items-center gap-4">
-              <!-- Benzerlik Seçeneği Toggle -->
-              <label class="flex items-center gap-2 cursor-pointer select-none text-slate-300 font-medium">
-                <input type="checkbox" id="fuzzySearchCheckbox" class="w-4 h-4 rounded text-indigo-600 bg-slate-900 border-slate-700 focus:ring-0 cursor-pointer">
-                <span class="flex items-center gap-1.5">
-                  <i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i>
-                  <span>Benzerlik Araması (Fuzzy)</span>
+          <!-- Arama Giriş Alanı -->
+          <div class="space-y-3">
+            <div class="flex flex-col sm:flex-row gap-2">
+              <div class="relative flex-1">
+                <input type="text" id="globalSearchInput" placeholder="Örn: armutlu, imar planı, bütçe, ulucak..."
+                  onkeydown="if(event.key==='Enter') runGlobalSearch()"
+                  class="w-full bg-slate-950/90 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition pl-10 pr-10 shadow-inner">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-500 text-sm"></i>
+                <button onclick="document.getElementById('globalSearchInput').value=''; document.getElementById('globalSearchInput').focus();" class="absolute right-3 top-3 text-slate-500 hover:text-slate-300 text-xs" title="Arama kutusunu temizle">
+                  <i class="fa-solid fa-circle-xmark"></i>
+                </button>
+              </div>
+              <button id="globalSearchBtn" onclick="runGlobalSearch()" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-sm font-semibold px-6 py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <span>Ara</span>
+              </button>
+            </div>
+
+            <!-- Gelişmiş / Benzerlik (Fuzzy) Arama Ayarları Barı -->
+            <div class="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-950/60 border border-slate-800/80 rounded-xl text-xs">
+              <div class="flex flex-wrap items-center gap-4">
+                <!-- Benzerlik Seçeneği Toggle -->
+                <label class="flex items-center gap-2 cursor-pointer select-none text-slate-300 font-medium">
+                  <input type="checkbox" id="fuzzySearchCheckbox" class="w-4 h-4 rounded text-indigo-600 bg-slate-900 border-slate-700 focus:ring-0 cursor-pointer">
+                  <span class="flex items-center gap-1.5">
+                    <i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i>
+                    <span>Benzerlik Araması (Fuzzy)</span>
+                  </span>
+                </label>
+
+                <!-- Tolerans Seçimi -->
+                <div id="fuzzyOptions" class="flex items-center gap-1.5 text-slate-400">
+                  <span class="text-[11px]">Tolerans:</span>
+                  <select id="fuzzyThresholdSelect" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-indigo-500">
+                    <option value="0.72">Geniş (%72)</option>
+                    <option value="0.78" selected>Dengeli (%78 - Önerilen)</option>
+                    <option value="0.85">Yakın (%85)</option>
+                  </select>
+                </div>
+
+                <!-- Kesit Video Ayarları -->
+                <div class="flex items-center gap-2 pl-2 border-l border-slate-800 text-slate-400">
+                  <span class="text-[11px] font-semibold text-rose-300 flex items-center gap-1"><i class="fa-solid fa-scissors"></i> Kesit Payı:</span>
+                  <label class="flex items-center gap-1 text-[11px]" title="Kelimenin söylendiği andan kaç saniye öncesi eklensin">
+                    <span>Önce:</span>
+                    <input type="number" id="clipPadBefore" value="10" min="0" max="120" class="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-xs text-white text-center outline-none focus:border-rose-500">
+                    <span>sn</span>
+                  </label>
+                  <label class="flex items-center gap-1 text-[11px]" title="Kelimenin söylendiği andan kaç saniye sonrası eklensin">
+                    <span>Sonra:</span>
+                    <input type="number" id="clipPadAfter" value="25" min="5" max="300" class="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-xs text-white text-center outline-none focus:border-rose-500">
+                    <span>sn</span>
+                  </label>
+                </div>
+
+                <!-- İpucu Rozeti -->
+                <span class="hidden md:inline-flex items-center gap-1 text-[11px] text-slate-400">
+                  <i class="fa-regular fa-circle-question text-indigo-400"></i>
+                  Örn: <code class="text-indigo-300 font-mono bg-slate-900 px-1 rounded">armutli</code> yazsanız da <strong class="text-emerald-400">Armutlu</strong> bulunur!
                 </span>
-              </label>
-
-              <!-- Tolerans Seçimi -->
-              <div id="fuzzyOptions" class="flex items-center gap-1.5 text-slate-400">
-                <span class="text-[11px]">Tolerans:</span>
-                <select id="fuzzyThresholdSelect" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-indigo-500">
-                  <option value="0.72">Geniş (%72)</option>
-                  <option value="0.78" selected>Dengeli (%78 - Önerilen)</option>
-                  <option value="0.85">Yakın (%85)</option>
-                </select>
               </div>
 
-              <!-- Kesit Video Ayarları -->
-              <div class="flex items-center gap-2 pl-2 border-l border-slate-800 text-slate-400">
-                <span class="text-[11px] font-semibold text-rose-300 flex items-center gap-1"><i class="fa-solid fa-scissors"></i> Kesit Payı:</span>
-                <label class="flex items-center gap-1 text-[11px]" title="Kelimenin söylendiği andan kaç saniye öncesi eklensin">
-                  <span>Önce:</span>
-                  <input type="number" id="clipPadBefore" value="10" min="0" max="120" class="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-xs text-white text-center outline-none focus:border-rose-500">
-                  <span>sn</span>
-                </label>
-                <label class="flex items-center gap-1 text-[11px]" title="Kelimenin söylendiği andan kaç saniye sonrası eklensin">
-                  <span>Sonra:</span>
-                  <input type="number" id="clipPadAfter" value="25" min="5" max="300" class="w-12 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-xs text-white text-center outline-none focus:border-rose-500">
-                  <span>sn</span>
-                </label>
+              <!-- Toplu Kesit İndirme Butonu -->
+              <div class="flex items-center gap-2">
+                <button id="btnDownloadAllHits" onclick="downloadAllSearchClips()" class="hidden px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold transition flex items-center gap-2 shadow-lg shadow-rose-600/20 text-xs">
+                  <i class="fa-solid fa-file-video"></i>
+                  <span id="btnDownloadAllHitsText">Tüm Eşleşen Kesitleri Toplu İndir</span>
+                </button>
               </div>
-
-              <!-- İpucu Rozeti -->
-              <span class="hidden md:inline-flex items-center gap-1 text-[11px] text-slate-400">
-                <i class="fa-regular fa-circle-question text-indigo-400"></i>
-                Örn: <code class="text-indigo-300 font-mono bg-slate-900 px-1 rounded">armutli</code> yazsanız da <strong class="text-emerald-400">Armutlu</strong> bulunur!
-              </span>
             </div>
-
-            <!-- Kelime Havuzu Göster/Gizle Butonu -->
-            <button onclick="toggleWordPoolDisplay()" class="px-3 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 transition flex items-center gap-1.5 font-medium text-xs">
-              <i class="fa-solid fa-cloud"></i>
-              <span id="btnWordPoolText">Kelime Havuzunu Göster</span>
-            </button>
           </div>
-        </div>
 
-        <!-- Görsel Kelime Havuzu / Kelime Bulutu (Word Cloud) Konteyneri -->
-        <div id="wordPoolContainer" class="hidden bg-slate-950/80 border border-purple-500/20 rounded-xl p-5 space-y-3">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-              <i class="fa-solid fa-tags text-purple-400 text-sm"></i>
-              <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">Tüm Anahtar Kelimeler (Görsel Havuz)</h3>
+          <!-- Sonuç Özeti & Sonuç Listesi -->
+          <div id="globalSearchSummary" class="text-xs text-slate-400 font-medium"></div>
+          <div id="globalSearchResults" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1"></div>
+        </section>
+      </div>
+      <!-- BÖLÜM 2 SONU -->
+
+      <!-- ========================================== -->
+      <!-- BÖLÜM 3: GÖRSEL KELİME HAVUZU -->
+      <!-- ========================================== -->
+      <div id="sectionWordPool" class="tab-content hidden space-y-6">
+        <section class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-lg">
+                <i class="fa-solid fa-cloud"></i>
+              </div>
+              <div>
+                <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                  Görsel Kelime Havuzu & İstatistikler
+                  <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">%100 Yerel / Sıfır Maliyet</span>
+                </h2>
+                <p class="text-xs text-slate-400">Transkriptlerde en çok tekrarlanan anahtar kelimeler. Tıklayarak anında tüm meclis toplantılarındaki geçtiği yerleri inceleyebilirsiniz.</p>
+              </div>
             </div>
+
             <div class="flex items-center gap-2">
               <input type="text" id="wordPoolFilterInput" oninput="filterWordPoolTags()" placeholder="Havuzda kelime ara..." 
-                class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-500 outline-none focus:border-purple-500 w-40">
-              <span class="text-[11px] text-slate-400 font-mono" id="wordPoolStats">Kelimeler yükleniyor...</span>
+                class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-purple-500 w-48 sm:w-64">
+              <button onclick="loadWordPool(true)" class="p-2 text-xs text-slate-400 hover:text-white bg-slate-800 rounded-xl transition border border-slate-700" title="Yenile">
+                <i class="fa-solid fa-arrows-rotate"></i>
+              </button>
             </div>
           </div>
-          <p class="text-[11px] text-slate-400">Aşağıdaki kelimelere tıkladığınızda arama kutusu otomatik dolar ve transkriptlerdeki geçtiği tüm yerler sınırsız olarak listelenir.</p>
-          <div id="wordCloudTags" class="flex flex-wrap items-center gap-2 pt-2 min-h-[100px] max-h-[380px] overflow-y-auto pr-1">
+
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <span id="wordPoolStats">Kelimeler taranıyor...</span>
+            <span class="text-[11px] text-slate-500">Kelimeye tıkladığınızda arama sekmesine geçilip sonuçlar listelenir.</span>
+          </div>
+
+          <div id="wordCloudTags" class="flex flex-wrap items-center gap-2 pt-2 min-h-[200px] max-h-[550px] overflow-y-auto pr-1">
             <div class="text-xs text-slate-500">Kelime havuzu yükleniyor...</div>
           </div>
-        </div>
+        </section>
+      </div>
+      <!-- BÖLÜM 3 SONU -->
 
-        <!-- Sonuç Özeti & Sonuç Listesi -->
-        <div id="globalSearchSummary" class="text-xs text-slate-400 font-medium"></div>
-        <div id="globalSearchResults" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1"></div>
-      </section>
+      <!-- ========================================== -->
+      <!-- BÖLÜM 4: İNDİRİLEN KESİTLER GALERİSİ -->
+      <!-- ========================================== -->
+      <div id="sectionClips" class="tab-content hidden space-y-6">
+        <section class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center text-lg">
+                <i class="fa-solid fa-scissors"></i>
+              </div>
+              <div>
+                <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                  İndirilen Video Kesitleri Galerisi
+                  <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20">MP4 Arşivi</span>
+                </h2>
+                <p class="text-xs text-slate-400">Bilgisayarınıza indirilen tüm yüksek kaliteli video kesitlerini buradan görüntüleyin, oynatın veya klasörünü açın.</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="openClipsFolder()" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 hover:text-white border border-rose-500/30 transition flex items-center gap-2 shadow-sm">
+                <i class="fa-regular fa-folder-open text-rose-400"></i>
+                <span>Windows Gezgininde Aç</span>
+              </button>
+              <button onclick="loadClipsGallery()" class="p-2 text-xs text-slate-400 hover:text-white bg-slate-800 rounded-xl transition border border-slate-700" title="Galeriyi Yenile">
+                <i class="fa-solid fa-arrows-rotate"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Kesit Filtresi ve İstatistik -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
+            <div id="clipsGalleryStats">Kesitler yükleniyor...</div>
+            <input type="text" id="clipsSearchInput" oninput="filterClipsGallery()" placeholder="İndirilen kesitlerde ara..." 
+              class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-rose-500 w-60">
+          </div>
+
+          <!-- Video Oynatıcı Önizleme Alanı -->
+          <div id="clipPlayerContainer" class="hidden bg-slate-950/90 border border-rose-500/30 rounded-2xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <h4 id="clipPlayerTitle" class="text-xs font-bold text-slate-200 truncate">Video Önizleme</h4>
+              <button onclick="closeClipPlayer()" class="w-6 h-6 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-xs">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <video id="clipVideoPlayer" controls class="w-full max-h-[420px] rounded-xl bg-black shadow-inner"></video>
+          </div>
+
+          <!-- Kesitler Grid Listesi -->
+          <div id="clipsGalleryGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- JavaScript ile doldurulur -->
+          </div>
+        </section>
+      </div>
+      <!-- BÖLÜM 4 SONU -->
 
       <!-- İstatistik ve Durum Kartları -->
       <section id="statsSection" class="hidden grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -1228,42 +1328,60 @@
     // ---- Tam metin arama & Görsel Kelime Havuzu ----
     let isWordPoolLoaded = false;
 
-    function toggleSearchPanel() {
-      const panel = document.getElementById('searchPanel');
-      panel.classList.toggle('hidden');
-      if (!panel.classList.contains('hidden')) {
-        document.getElementById('globalSearchInput').focus();
-        if (!isWordPoolLoaded) loadWordPool();
+    let isWordPoolLoaded = false;
+    let isClipsGalleryLoaded = false;
+    let allClipsData = [];
+    let currentSearchResultsList = [];
+    let activeMainTab = 'scanner';
+
+    // Ana Sekme Değiştirici
+    function switchMainTab(tabId) {
+      activeMainTab = tabId;
+      const tabs = ['scanner', 'search', 'wordpool', 'clips'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`navTab${t.charAt(0).toUpperCase() + t.slice(1)}`);
+        const section = document.getElementById(t === 'scanner' ? 'sectionScanner' : 
+                               t === 'search' ? 'sectionSearch' : 
+                               t === 'wordpool' ? 'sectionWordPool' : 'sectionClips');
+        if (t === tabId) {
+          if (btn) {
+            btn.className = 'nav-tab px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-2 bg-indigo-600 text-white shadow-md shadow-indigo-600/20 shrink-0';
+          }
+          if (section) section.classList.remove('hidden');
+        } else {
+          if (btn) {
+            btn.className = 'nav-tab px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-800/80 shrink-0';
+          }
+          if (section) section.classList.add('hidden');
+        }
+      });
+
+      if (tabId === 'wordpool' && !isWordPoolLoaded) {
+        loadWordPool();
+      } else if (tabId === 'clips') {
+        loadClipsGallery();
+      } else if (tabId === 'search') {
+        setTimeout(() => document.getElementById('globalSearchInput')?.focus(), 100);
       }
+    }
+
+    // Geriye dönük uyumluluk butonları
+    function toggleSearchPanel() {
+      switchMainTab('search');
     }
 
     function toggleWordCloudSection() {
-      const panel = document.getElementById('searchPanel');
-      if (panel.classList.contains('hidden')) {
-        panel.classList.remove('hidden');
-      }
-      const pool = document.getElementById('wordPoolContainer');
-      pool.classList.remove('hidden');
-      document.getElementById('btnWordPoolText').innerText = 'Kelime Havuzunu Gizle';
-      if (!isWordPoolLoaded) loadWordPool();
-      pool.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      switchMainTab('wordpool');
     }
 
     function toggleWordPoolDisplay() {
-      const pool = document.getElementById('wordPoolContainer');
-      const btnText = document.getElementById('btnWordPoolText');
-      pool.classList.toggle('hidden');
-      if (!pool.classList.contains('hidden')) {
-        btnText.innerText = 'Kelime Havuzunu Gizle';
-        if (!isWordPoolLoaded) loadWordPool();
-      } else {
-        btnText.innerText = 'Kelime Havuzunu Göster';
-      }
+      switchMainTab('wordpool');
     }
 
     let allWordPoolData = [];
 
-    async function loadWordPool() {
+    async function loadWordPool(force = false) {
+      if (isWordPoolLoaded && !force) return;
       const tagsContainer = document.getElementById('wordCloudTags');
       const statsEl = document.getElementById('wordPoolStats');
       tagsContainer.innerHTML = '<div class="text-xs text-slate-500 flex items-center gap-2"><i class="fa-solid fa-circle-notch animate-spin text-purple-400"></i> Kelime havuzu taranıyor...</div>';
@@ -1281,7 +1399,7 @@
 
         isWordPoolLoaded = true;
         allWordPoolData = data.words;
-        statsEl.innerText = `${data.words.length} anahtar kelime (${data.total_words.toLocaleString()} toplam kelime)`;
+        statsEl.innerText = `${data.words.length.toLocaleString()} anahtar kelime (${data.total_words.toLocaleString()} toplam kelime)`;
         renderWordPoolTags(allWordPoolData);
 
       } catch (err) {
@@ -1413,7 +1531,17 @@
         if (data.total_hits === 0) {
           summary.innerHTML = `<span class="text-amber-400">"${escapeHtml(query)}"</span> için sonuç bulunamadı.` + 
             (!fuzzy ? ' <button onclick="document.getElementById(\'fuzzySearchCheckbox\').checked=true; runGlobalSearch();" class="text-indigo-400 underline font-semibold ml-1">Benzerlik (Fuzzy) aramasıyla dene</button>' : '');
+          document.getElementById('btnDownloadAllHits')?.classList.add('hidden');
           return;
+        }
+
+        currentSearchResultsList = data.files;
+        const totalMatchingClips = data.total_hits;
+        const btnAll = document.getElementById('btnDownloadAllHits');
+        const btnAllText = document.getElementById('btnDownloadAllHitsText');
+        if (btnAll) {
+          btnAll.classList.remove('hidden');
+          btnAllText.innerText = `Tüm Eşleşen Kesitleri Toplu İndir (${totalMatchingClips} Adet)`;
         }
 
         const modeBadge = data.fuzzy
@@ -1549,6 +1677,235 @@
         btnElement.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-400"></i><span>Hata! Tekrar dene</span>`;
         btnElement.disabled = false;
         showToast('Kesit indirme hatası: ' + err.message, 'error', 6000);
+      }
+    }
+
+    // ==========================================
+    // TOPLU KESİT İNDİRME MANTIĞI
+    // ==========================================
+    let isBulkDownloadingClips = false;
+
+    async function downloadAllSearchClips() {
+      if (isBulkDownloadingClips) return;
+      if (!currentSearchResultsList || currentSearchResultsList.length === 0) {
+        showToast('İndirilecek arama sonucu bulunamadı.', 'warning');
+        return;
+      }
+
+      // Tüm eşleşen timestamp'leri topla
+      const queue = [];
+      currentSearchResultsList.forEach(f => {
+        if (!f.link) return;
+        f.hits.forEach(h => {
+          if (h.timestamp) {
+            queue.push({
+              url: f.link,
+              timestamp: h.timestamp,
+              title: f.title,
+              channel: f.channel || 'Genel'
+            });
+          }
+        });
+      });
+
+      if (queue.length === 0) {
+        showToast('Zaman damgalı kesit bulunamadı.', 'warning');
+        return;
+      }
+
+      const confirmMsg = `Bulunan ${queue.length} adet video kesiti en yüksek kalitede arka arkaya indirilecek. Onaylıyor musunuz?`;
+      if (!confirm(confirmMsg)) return;
+
+      isBulkDownloadingClips = true;
+      const btnAll = document.getElementById('btnDownloadAllHits');
+      const btnAllText = document.getElementById('btnDownloadAllHitsText');
+      btnAll.disabled = true;
+
+      const padBefore = parseInt(document.getElementById('clipPadBefore')?.value || '10', 10);
+      const padAfter = parseInt(document.getElementById('clipPadAfter')?.value || '25', 10);
+
+      showToast(`🎬 ${queue.length} kesitin toplu indirilmesi başlatıldı...`, 'info', 6000);
+
+      let successCount = 0;
+      let cachedCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < queue.length; i++) {
+        const item = queue[i];
+        btnAllText.innerText = `İndiriliyor (${i + 1}/${queue.length}): ${item.timestamp}`;
+
+        try {
+          const res = await fetch('/api/download-clip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: item.url,
+              timestamp: item.timestamp,
+              title: item.title,
+              channel: item.channel,
+              pad_before: padBefore,
+              pad_after: padAfter
+            })
+          });
+
+          const data = await res.json();
+          if (data.success) {
+            if (data.clip.cached) cachedCount++;
+            else successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (err) {
+          failCount++;
+        }
+      }
+
+      isBulkDownloadingClips = false;
+      btnAll.disabled = false;
+      btnAllText.innerText = `Tüm Eşleşen Kesitleri Toplu İndir (${queue.length} Adet)`;
+
+      showToast(`🎉 Toplu indirme tamamlandı! (${successCount} yeni, ${cachedCount} önbellek, ${failCount} hata)`, 'success', 8000);
+      loadClipsGallery();
+    }
+
+    // ==========================================
+    // KESİTLER GALERİSİ MANTIĞI
+    // ==========================================
+    async function loadClipsGallery() {
+      const grid = document.getElementById('clipsGalleryGrid');
+      const statsEl = document.getElementById('clipsGalleryStats');
+      const badge = document.getElementById('clipsCountBadge');
+      grid.innerHTML = '<div class="col-span-full py-8 text-center text-xs text-slate-500 flex items-center justify-center gap-2"><i class="fa-solid fa-circle-notch animate-spin text-rose-400"></i> İndirilen kesitler taranıyor...</div>';
+
+      try {
+        const res = await fetch('/api/list-clips');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        allClipsData = data.clips || [];
+        if (badge) {
+          badge.innerText = allClipsData.length;
+          badge.classList.remove('hidden');
+        }
+
+        if (allClipsData.length === 0) {
+          grid.innerHTML = `
+            <div class="col-span-full py-12 text-center space-y-3 bg-slate-950/40 rounded-2xl border border-dashed border-slate-800">
+              <div class="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-400 flex items-center justify-center text-xl mx-auto">
+                <i class="fa-solid fa-scissors"></i>
+              </div>
+              <h3 class="text-sm font-bold text-slate-300">Henüz indirilmiş video kesiti yok</h3>
+              <p class="text-xs text-slate-500 max-w-sm mx-auto">"2. Transkriptlerde Ara" sekmesinden arama yapıp istediğiniz cümlenin kesitini indirebilirsiniz.</p>
+              <button onclick="switchMainTab('search')" class="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition">
+                Arama Sekmesine Git
+              </button>
+            </div>
+          `;
+          statsEl.innerText = '0 video kesiti';
+          return;
+        }
+
+        statsEl.innerText = `Toplam ${allClipsData.length} video kesiti hazır (${allClipsData.reduce((acc, c) => acc + c.size_bytes, 0) / (1024*1024) | 0} MB)`;
+        renderClipsGrid(allClipsData);
+
+      } catch (err) {
+        grid.innerHTML = `<div class="col-span-full text-xs text-rose-400 py-6 text-center">Kesitler listelenemedi: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function filterClipsGallery() {
+      const q = normalizeTr(document.getElementById('clipsSearchInput')?.value || '');
+      if (!q) {
+        renderClipsGrid(allClipsData);
+        return;
+      }
+      const filtered = allClipsData.filter(c => normalizeTr(c.filename).includes(q) || normalizeTr(c.channel).includes(q));
+      renderClipsGrid(filtered);
+    }
+
+    function renderClipsGrid(clipsList) {
+      const grid = document.getElementById('clipsGalleryGrid');
+      grid.innerHTML = '';
+
+      if (clipsList.length === 0) {
+        grid.innerHTML = '<div class="col-span-full py-6 text-center text-xs text-slate-500">Aramanıza uygun kesit bulunamadı.</div>';
+        return;
+      }
+
+      clipsList.forEach(clip => {
+        const card = document.createElement('div');
+        card.className = 'bg-slate-950/80 border border-slate-800 hover:border-rose-500/40 rounded-2xl p-4 shadow-md transition flex flex-col justify-between space-y-3 group';
+
+        const streamUrl = `/clips/${encodeURIComponent(clip.relative_path)}`;
+
+        card.innerHTML = `
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20 truncate">${escapeHtml(clip.channel)}</span>
+              <span class="text-[11px] font-mono text-slate-500">${escapeHtml(clip.size_formatted)}</span>
+            </div>
+            <h4 class="text-xs font-bold text-slate-200 group-hover:text-white transition line-clamp-2" title="${escapeHtml(clip.filename)}">
+              ${escapeHtml(clip.filename)}
+            </h4>
+          </div>
+
+          <div class="flex items-center justify-between pt-2 border-t border-slate-800/80">
+            <button onclick="playClipInline('${escapeHtml(streamUrl)}', '${escapeHtml(clip.filename).replace(/'/g, "\\'")}')" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-600/20 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/30 transition flex items-center gap-1.5 shadow-sm">
+              <i class="fa-solid fa-play text-[10px]"></i>
+              <span>Oynat</span>
+            </button>
+            <div class="flex items-center gap-1.5">
+              <a href="${escapeHtml(streamUrl)}" download="${escapeHtml(clip.filename)}" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition" title="Tarayıcıdan MP4 İndir">
+                <i class="fa-solid fa-download text-xs"></i>
+              </a>
+              <button onclick="deleteClipConfirm('${escapeHtml(clip.relative_path)}')" class="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-600/30 text-slate-400 hover:text-rose-400 transition" title="Kesiti Sil">
+                <i class="fa-regular fa-trash-can text-xs"></i>
+              </button>
+            </div>
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+    }
+
+    function playClipInline(url, title) {
+      const container = document.getElementById('clipPlayerContainer');
+      const player = document.getElementById('clipVideoPlayer');
+      const titleEl = document.getElementById('clipPlayerTitle');
+
+      titleEl.innerText = title;
+      player.src = url;
+      container.classList.remove('hidden');
+      player.play().catch(() => {});
+      container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function closeClipPlayer() {
+      const container = document.getElementById('clipPlayerContainer');
+      const player = document.getElementById('clipVideoPlayer');
+      player.pause();
+      player.src = '';
+      container.classList.add('hidden');
+    }
+
+    async function deleteClipConfirm(relPath) {
+      if (!confirm(`Bu kesiti silmek istediğinizden emin misiniz?\n${relPath}`)) return;
+      try {
+        const res = await fetch('/api/delete-clip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ relative_path: relPath })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Kesit silindi.', 'info');
+          loadClipsGallery();
+        } else {
+          showToast('Silinemedi: ' + data.error, 'error');
+        }
+      } catch (err) {
+        showToast('Silme hatası: ' + err.message, 'error');
       }
     }
 
