@@ -133,17 +133,15 @@ def has_timestamps(text: str) -> bool:
 
 
 def find_existing_file(video_id: str, safe_title: str) -> str | None:
-    """Önce video ID ile, sonra eski formattaki ('001_Başlık.txt') tam başlık eşleşmesiyle arar."""
+    """Yalnızca benzersiz video ID etiketi ile ([video_id]) tam eşleşme arar.
+    Başlık benzerliklerinden kaynaklanan mükerrer (+1/2 fazla) eşleşmeleri engeller."""
+    if not os.path.exists(TRANSCRIPTS_DIR):
+        return None
     files = [f for f in os.listdir(TRANSCRIPTS_DIR) if f.endswith(".txt")]
     tag = f"[{video_id}]"
     for f in files:
         if tag in f:
             return f
-    if safe_title:
-        for f in files:
-            stem = f[:-4]
-            if stem == safe_title or re.fullmatch(r"\d{3}_" + re.escape(safe_title), stem):
-                return f
     return None
 
 
@@ -499,7 +497,7 @@ class TranscriptServer(BaseHTTPRequestHandler):
                         "link": link,
                         "cached": existing_file is not None,
                         "filename": existing_file,
-                        "status": "success" if existing_file else "pending"
+                        "status": "cached" if existing_file else "pending"
                     })
                     idx += 1
 
@@ -511,6 +509,19 @@ class TranscriptServer(BaseHTTPRequestHandler):
                 })
             except Exception as e:
                 self.send_json({"success": False, "error": f"Tarama hatası: {str(e)}"}, status=500)
+            return
+
+        elif path == "/api/clear-transcripts":
+            count = 0
+            if os.path.exists(TRANSCRIPTS_DIR):
+                for f in os.listdir(TRANSCRIPTS_DIR):
+                    if f.endswith(".txt"):
+                        try:
+                            os.remove(os.path.join(TRANSCRIPTS_DIR, f))
+                            count += 1
+                        except OSError:
+                            pass
+            self.send_json({"success": True, "deleted_count": count})
             return
 
         elif path == "/api/download-single":

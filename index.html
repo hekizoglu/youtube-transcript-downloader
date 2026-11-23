@@ -181,20 +181,20 @@
         </div>
         <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center space-x-3 shadow-md">
           <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg">
-            <i class="fa-solid fa-circle-check"></i>
+            <i class="fa-solid fa-hard-drive"></i>
           </div>
           <div>
-            <div id="statSuccess" class="text-xl font-bold text-emerald-400">0</div>
-            <div class="text-xs text-slate-400">Hazır / İndirildi</div>
+            <div id="statCached" class="text-xl font-bold text-emerald-400">0</div>
+            <div class="text-xs text-slate-400" title="Bilgisayarınızda transkriptler klasöründe zaten mevcut olanlar">Diskte Mevcut</div>
           </div>
         </div>
         <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-4 flex items-center space-x-3 shadow-md">
           <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg">
-            <i class="fa-solid fa-triangle-exclamation"></i>
+            <i class="fa-solid fa-cloud-arrow-down"></i>
           </div>
           <div>
-            <div id="statFailed" class="text-xl font-bold text-amber-400">0</div>
-            <div class="text-xs text-slate-400">Altyazı Bulunamayan</div>
+            <div id="statUncached" class="text-xl font-bold text-amber-400">0</div>
+            <div class="text-xs text-slate-400">Henüz İndirilmemiş</div>
           </div>
         </div>
       </section>
@@ -212,7 +212,11 @@
             </p>
           </div>
 
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 cursor-pointer select-none bg-slate-950/60 border border-slate-800 px-3 py-2 rounded-xl" title="İşaretlenirse diskte zaten bulunan transkriptler atlanmaz, YouTube'dan yeniden çekilir">
+              <input type="checkbox" id="forceDownloadCheckbox" class="w-3.5 h-3.5 rounded text-indigo-600 bg-slate-900 border-slate-700 focus:ring-0 cursor-pointer">
+              <span>Diskte olanları da yeniden indir</span>
+            </label>
             <button id="downloadBtn" onclick="startBatchDownload()" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center gap-2 text-sm">
               <i class="fa-solid fa-cloud-arrow-down"></i>
               <span id="downloadBtnText">Seçilenleri İndir</span>
@@ -254,11 +258,14 @@
           <!-- Filtre Sonuç Rozeti & Hızlı Seçim Butonları -->
           <div class="flex flex-wrap items-center gap-2">
             <span id="filterStatsBadge" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 font-medium">
-              99 video listeleniyor
+              0 video listeleniyor
             </span>
 
             <button onclick="selectFilteredOnly(true)" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5" title="Sadece arama sonucundaki videoları seçer, diğerlerini kaldırır">
               <i class="fa-solid fa-check"></i> <span id="btnSelectFilteredText">Filtrelenenleri Seç</span>
+            </button>
+            <button onclick="selectUncachedOnly()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600/80 hover:bg-amber-600 text-white shadow-md shadow-amber-600/20 transition flex items-center gap-1.5" title="Sadece henüz bilgisayarınıza indirilmemiş olan videoları seçer">
+              <i class="fa-solid fa-cloud-arrow-down"></i> Sadece İndirilmemişleri Seç
             </button>
             <button onclick="selectFilteredOnly(false)" class="px-3 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1.5" title="Sadece arama sonucundaki videoların seçimini kaldırır">
               <i class="fa-regular fa-square"></i> Filtrelenenleri Bırak
@@ -474,7 +481,7 @@
           videos = data.videos.map(v => ({
             ...v,
             selected: true,
-            status: v.cached ? 'success' : 'pending',
+            status: v.cached ? 'cached' : 'pending',
             error: null
           }));
 
@@ -549,11 +556,13 @@
         const tr = document.createElement('tr');
         tr.className = `hover:bg-slate-800/40 transition group ${video.selected ? 'bg-indigo-950/20' : ''}`;
 
-        let statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-400">Bekliyor</span>`;
+        let statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-400">İndirilmedi</span>`;
         if (video.status === 'downloading') {
           statusBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"><i class="fa-solid fa-circle-notch animate-spin text-[10px]"></i> İndiriliyor</span>`;
         } else if (video.status === 'success') {
-          statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><i class="fa-solid fa-check text-[10px]"></i> Hazır</span>`;
+          statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30"><i class="fa-solid fa-circle-check text-[10px]"></i> Yeni İndirildi</span>`;
+        } else if (video.cached || video.status === 'cached') {
+          statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" title="Bu video daha önce indirilmiş, diskte hazır."><i class="fa-solid fa-hard-drive text-[10px]"></i> Diskte Mevcut</span>`;
         } else if (video.status === 'failed') {
           statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20" title="${escapeHtml(video.error || '')}"><i class="fa-solid fa-xmark text-[10px]"></i> Altyazı Yok</span>`;
         }
@@ -584,9 +593,12 @@
           <td class="p-3.5 text-center">${statusBadge}</td>
           <td class="p-3.5 text-right">
             <div class="flex items-center justify-end gap-1.5">
-              ${(video.transcript || video.cached) ? `
-                <button onclick="openModal(${index})" class="px-2.5 py-1 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 rounded-lg transition border border-indigo-500/30 flex items-center gap-1 shadow-sm">
+              ${(video.transcript || video.cached || video.status === 'cached' || video.status === 'success') ? `
+                <button onclick="openModal(${index})" class="px-2.5 py-1 text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 rounded-lg transition border border-emerald-500/30 flex items-center gap-1 shadow-sm" title="Transkripti Aç ve Oku">
                   <i class="fa-regular fa-file-lines"></i> Oku
+                </button>
+                <button onclick="downloadDirectSingle(${index})" class="p-1.5 text-xs text-slate-400 hover:text-indigo-400 bg-slate-800/80 hover:bg-slate-700 rounded-lg transition border border-slate-700" title="Yeniden İndir (Güncelle)">
+                  <i class="fa-solid fa-arrows-rotate text-[11px]"></i>
                 </button>
               ` : `
                 <button onclick="downloadDirectSingle(${index})" class="px-2.5 py-1 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition border border-slate-700 flex items-center gap-1 shadow-sm" title="Sadece bu videoyu indir">
@@ -652,6 +664,25 @@
       updateStats();
     }
 
+    // SADECE henüz indirilmemiş (diskte olmayan) videoları seç
+    function selectUncachedOnly() {
+      const filteredIndices = getFilteredIndices();
+      let count = 0;
+      videos.forEach((v, idx) => {
+        const inFilter = filteredIndices.includes(idx);
+        const isAlreadyOnDisk = Boolean(v.cached || v.status === 'cached');
+        if (inFilter && !isAlreadyOnDisk) {
+          v.selected = true;
+          count++;
+        } else {
+          v.selected = false;
+        }
+      });
+      renderVideoList();
+      updateStats();
+      showToast(`${count} adet indirilmemiş video seçildi.`, 'info');
+    }
+
     function selectAll(val) {
       videos.forEach(v => v.selected = val);
       const headerCb = document.getElementById('headerCheckbox');
@@ -668,13 +699,18 @@
     function updateStats() {
       const total = videos.length;
       const selected = videos.filter(v => v.selected).length;
-      const success = videos.filter(v => v.status === 'success').length;
-      const failed = videos.filter(v => v.status === 'failed').length;
+      const cached = videos.filter(v => v.cached || v.status === 'cached').length;
+      const uncached = total - cached;
 
-      document.getElementById('statTotal').innerText = total;
-      document.getElementById('statSelected').innerText = selected;
-      document.getElementById('statSuccess').innerText = success;
-      document.getElementById('statFailed').innerText = failed;
+      const elTotal = document.getElementById('statTotal');
+      const elSelected = document.getElementById('statSelected');
+      const elCached = document.getElementById('statCached');
+      const elUncached = document.getElementById('statUncached');
+
+      if (elTotal) elTotal.innerText = total;
+      if (elSelected) elSelected.innerText = selected;
+      if (elCached) elCached.innerText = cached;
+      if (elUncached) elUncached.innerText = uncached;
 
       // İndirme butonunun metnini dinamik güncelle
       const dlBtnText = document.getElementById('downloadBtnText');
@@ -711,6 +747,7 @@
         const data = await res.json();
         if (data.success) {
           video.status = 'success';
+          video.cached = true;
           video.transcript = data.text;
           video.text_timestamped = data.text_timestamped || data.text;
           video.text_clean = data.text_clean || data.text;
@@ -752,6 +789,7 @@
 
       const langs = document.getElementById('langsInput').value.trim() || 'tr,en';
       const timestamps = document.getElementById('timestampsCheckbox').checked;
+      const forceReload = document.getElementById('forceDownloadCheckbox')?.checked || false;
       let doneCount = 0;
       const totalToDownload = selectedList.length;
 
@@ -777,13 +815,14 @@
               sira: video.sira,
               langs: langs,
               timestamps: timestamps,
-              force: false
+              force: forceReload
             })
           });
 
           const data = await res.json();
           if (data.success) {
-            video.status = 'success';
+            video.status = data.cached ? 'cached' : 'success';
+            video.cached = true;
             video.transcript = data.text;
             video.text_timestamped = data.text_timestamped || data.text;
             video.text_clean = data.text_clean || data.text;
@@ -805,7 +844,7 @@
         updateStats();
         renderVideoList();
 
-        if (i < selectedList.length - 1 && !shouldStop) {
+        if (i < selectedList.length - 1 && !shouldStop && !data?.cached) {
           await new Promise(r => setTimeout(r, 600));
         }
       }
