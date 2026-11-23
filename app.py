@@ -324,7 +324,7 @@ STOPWORDS = {
 }
 
 
-def search_transcripts(query: str, max_results: int = 300, fuzzy: bool = False, threshold: float = 0.78, channel: str | None = None) -> dict:
+def search_transcripts(query: str, max_results: int | None = None, fuzzy: bool = False, threshold: float = 0.78, channel: str | None = None) -> dict:
     q = normalize_text(query.strip())
     if not q:
         return {"query": query, "fuzzy": fuzzy, "threshold": threshold, "total_hits": 0, "files": [], "truncated": False}
@@ -389,7 +389,7 @@ def search_transcripts(query: str, max_results: int = 300, fuzzy: bool = False, 
                 hit["url"] = f"{link}&t={ts_to_seconds(ts)}s"
             hits.append(hit)
             total += 1
-            if total >= max_results:
+            if max_results and total >= max_results:
                 truncated = True
                 break
 
@@ -415,7 +415,7 @@ def search_transcripts(query: str, max_results: int = 300, fuzzy: bool = False, 
     }
 
 
-def extract_word_pool(channel_name: str | None = None, top_n: int = 80) -> dict:
+def extract_word_pool(channel_name: str | None = None, top_n: int = 0) -> dict:
     counts = Counter()
     display_map = {}
 
@@ -440,8 +440,10 @@ def extract_word_pool(channel_name: str | None = None, top_n: int = 80) -> dict:
                                 display_map[n] = tok.capitalize()
 
     words_list = []
+    # top_n > 0 ise sınırlı, 0 veya None ise en az 2 kez geçen tüm anlamlı kelimeleri al
+    most_common_items = counts.most_common(top_n) if (top_n and top_n > 0) else [item for item in counts.most_common() if item[1] >= 2]
     max_count = max(counts.values()) if counts else 1
-    for word_norm, cnt in counts.most_common(top_n):
+    for word_norm, cnt in most_common_items:
         weight = max(1, min(10, int((cnt / max_count) * 10)))
         words_list.append({
             "text": display_map.get(word_norm, word_norm.capitalize()),
@@ -581,18 +583,25 @@ class TranscriptServer(BaseHTTPRequestHandler):
             except ValueError:
                 threshold = 0.78
             channel = parse_qs(parsed.query).get("channel", [""])[0]
+            raw_limit = parse_qs(parsed.query).get("limit", ["0"])[0]
+            try:
+                max_results = int(raw_limit) if int(raw_limit) > 0 else None
+            except ValueError:
+                max_results = None
+
             if len(query.strip()) < 2:
                 self.send_json({"success": False, "error": "En az 2 karakter girin."}, status=400)
                 return
-            self.send_json({"success": True, **search_transcripts(query, fuzzy=fuzzy, threshold=threshold, channel=channel)})
+            self.send_json({"success": True, **search_transcripts(query, max_results=max_results, fuzzy=fuzzy, threshold=threshold, channel=channel)})
             return
 
         elif path == "/api/word-pool":
             channel = parse_qs(parsed.query).get("channel", [""])[0]
+            raw_limit = parse_qs(parsed.query).get("limit", ["0"])[0]
             try:
-                limit = int(parse_qs(parsed.query).get("limit", ["80"])[0])
+                limit = int(raw_limit)
             except ValueError:
-                limit = 80
+                limit = 0
             self.send_json(extract_word_pool(channel_name=channel, top_n=limit))
             return
 
