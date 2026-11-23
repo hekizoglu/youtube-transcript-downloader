@@ -5,3 +5,4 @@ cd /d "%~dp0"
 echo Transkriptler klasoru aciliyor...
 start "" explorer.exe "%~dp0transkriptler"
 exit
+

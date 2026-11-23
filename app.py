@@ -11,6 +11,8 @@ import unicodedata
 from urllib.parse import urlparse, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from concurrent.futures import ThreadPoolExecutor
+from collections import Counter
+from difflib import SequenceMatcher
 import yt_dlp
 
 PORT = 5500
@@ -238,7 +240,7 @@ def pick_subtitle(info: dict, lang_list: list[str]):
 def normalize_text(s: str) -> str:
     """Türkçe ve aksan duyarsız küçük harf normalizasyonu (arama için)."""
     s = s.replace("I", "ı").replace("İ", "i").lower()
-    s = s.replace("ı", "i")
+    s = s.replace("ı", "i").replace("ğ", "g").replace("ü", "u").replace("ş", "s").replace("ö", "o").replace("ç", "c")
     s = unicodedata.normalize("NFKD", s)
     return "".join(c for c in s if not unicodedata.combining(c))
 
@@ -250,22 +252,96 @@ def ts_to_seconds(ts: str) -> int:
     return total
 
 
-def search_transcripts(query: str, max_results: int = 300) -> dict:
+def fuzzy_word_similarity(query_term: str, target_word: str) -> float:
+    """Sıfır LLM / API maliyetiyle yerel benzerlik puanı (0.0 - 1.0).
+    Örn: 'armutli' -> 'armutlu' (%92), 'armutlunun' (%92)."""
+    if query_term == target_word:
+        return 1.0
+    if not query_term or not target_word:
+        return 0.0
+    if abs(len(query_term) - len(target_word)) > 6:
+        return 0.0
+
+    first_bonus = 0.06 if query_term[0] == target_word[0] else -0.12
+
+    best = SequenceMatcher(None, query_term, target_word).ratio()
+    if len(target_word) >= len(query_term):
+        prefix = target_word[:len(query_term)]
+        p_ratio = SequenceMatcher(None, query_term, prefix).ratio()
+        best = max(best, p_ratio)
+
+    return min(1.0, max(0.0, best + first_bonus))
+
+
+def line_fuzzy_search(terms: list[str], line_norm: str, threshold: float = 0.78) -> tuple[bool, dict[str, dict]]:
+    """Satır içerisinde aranan terimlerin her biri için benzerlik denetimi yapar."""
+    words = re.findall(r'[a-z0-9]+', line_norm)
+    if not words:
+        return False, {}
+
+    matched_details = {}
+    for term in terms:
+        best_word = None
+        best_score = 0.0
+        for w in words:
+            score = fuzzy_word_similarity(term, w)
+            if score > best_score:
+                best_score = score
+                best_word = w
+        if best_score >= threshold:
+            matched_details[term] = {"matched": best_word, "score": round(best_score, 2)}
+        else:
+            return False, {}
+
+    return True, matched_details
+
+
+STOPWORDS = {
+    've', 'ile', 'bir', 'bu', 'su', 'o', 'icin', 'gibi', 'kadar', 'olan', 'olarak', 'sayin', 'baskanim',
+    'degerli', 'arkadaslar', 'tesekkur', 'ederim', 'evet', 'hayir', 'kabul', 'edilenler', 'edilmeyenler',
+    'oy', 'birligiyle', 'cokluguyla', 'madde', 'maddesi', 'gundem', 'yok', 'var', 'daha', 'cok', 'ben',
+    'biz', 'sen', 'siz', 'onlar', 'tarafindan', 'seklinde', 'ancak', 'cunku', 'boyle', 'soyle', 'simdi',
+    'sonra', 'once', 'uzere', 'dolayi', 'yani', 'diye', 'bunu', 'bunun', 'buna', 'burada', 'surada',
+    'orada', 'seyi', 'seyler', 'gerek', 'lazim', 'konuda', 'konusunda', 'iliskin', 'yonelik', 'ilgili',
+    'hakkinda', 'ayrica', 'zaten', 'tabii', 'zaman', 'birlikte', 'hepsi', 'kendi', 'kendisi', 'hic',
+    'hicbir', 'biri', 'birisi', 'bazi', 'tum', 'butun', 'gore', 'karsi', 'dogru', 'sonucunda', 'yapilan',
+    'yapilmasi', 'edilen', 'edilmesi', 'oldugu', 'oldugunu', 'olmasi', 'etmek', 'etmesi', 'olmak',
+    'gelen', 'gelmesi', 'veren', 'vermesi', 'alan', 'almasi', 'demek', 'dedi', 'dedim', 'derim',
+    'diyor', 'diyoruz', 'baktigimizda', 'soyledi', 'soyluyorum', 'arkadasimiz', 'uyemiz', 'meclisimiz',
+    'komisyonumuz', 'oturum', 'birlesim', 'toplanti', 'toplantisi', 'baskan', 'meclis', 'karar',
+    'belediye', 'belediyesi', 'kemalpasa', 'chp', 'ak', 'parti', 'mhp', 'iyi', 'grup', 'sozcusu',
+    'efendim', 'lutfen', 'tamam', 'peki', 'olur', 'olmaz', 'yoktur', 'vardir', 'de', 'da', 'ki', 'mi', 'mu',
+    'eee', 'sey', 'iste', 'bey', 'edenler', 'etmeyenler', 'sunuyorum', 'oylariniza', 'edilmistir',
+    'gercekten', 'ediyorum', 'bizim', 'degil', 'onu', 'istiyorum', 'tane', 'ayni', 'biraz', 'bize',
+    'bana', 'onun', 'onlarin', 'bizler', 'sizler', 'nasil', 'nicin', 'neden', 'hangi', 'her', 'herkes',
+    'baska', 'bununla', 'bunda', 'bundan', 'ondan', 'onlar', 'sunlar', 'bunlar', 'kendi', 'kendine',
+    'bizleri', 'sizleri', 'yine', 'hala', 'bile', 'dahi', 'ise', 'eger', 'yada', 'veya', 'yahut',
+    'madem', 'oysa', 'halbuki', 'belki', 'sanki', 'keske', 'insallah', 'bari', 'neyse', 'ama',
+    'sekilde', 'gecen', 'buyurun', 'sadece', 'olsun', 'oyle', 'diger', 'iki', 'gun', 'sizin', 'benim',
+    'bunu', 'sunu', 'biri', 'hemen', 'fazla', 'az', 'kendi', 'onlari', 'bunlari', 'bize', 'size',
+    'benden', 'senden', 'ondan', 'bizden', 'sizden', 'onlardan', 'dolayisiyla', 'zamanda', 'iste',
+    'boylece', 'buradaki', 'oradaki', 'buraya', 'oraya', 'nerede', 'nereden', 'nereye'
+}
+
+
+def search_transcripts(query: str, max_results: int = 300, fuzzy: bool = False, threshold: float = 0.78, channel: str | None = None) -> dict:
     q = normalize_text(query.strip())
     if not q:
-        return {"query": query, "total_hits": 0, "files": [], "truncated": False}
+        return {"query": query, "fuzzy": fuzzy, "threshold": threshold, "total_hits": 0, "files": [], "truncated": False}
     terms = q.split()
     results = []
     total = 0
     truncated = False
 
-    # Tüm alt klasörlerdeki .txt dosyalarını tara
+    target_dir = os.path.join(TRANSCRIPTS_DIR, sanitize_filename(channel)) if channel else TRANSCRIPTS_DIR
+
     txt_files = []
-    for root, dirs, files in os.walk(TRANSCRIPTS_DIR):
-        for f in files:
-            if f.endswith(".txt"):
-                rel = os.path.relpath(os.path.join(root, f), TRANSCRIPTS_DIR).replace("\\", "/")
-                txt_files.append((rel, os.path.join(root, f)))
+    if os.path.exists(target_dir):
+        for root, dirs, files in os.walk(target_dir):
+            for f in files:
+                if f.endswith(".txt"):
+                    rel = os.path.relpath(os.path.join(root, f), TRANSCRIPTS_DIR).replace("\\", "/")
+                    txt_files.append((rel, os.path.join(root, f)))
 
     txt_files.sort(key=lambda x: x[0])
 
@@ -278,22 +354,37 @@ def search_transcripts(query: str, max_results: int = 300) -> dict:
         link = link_m.group(1) if link_m else None
         body = text.split("=" * 60, 1)[-1]
         hits = []
+
         for line in body.splitlines():
             line = line.strip()
             if not line:
                 continue
             norm = normalize_text(line)
-            if not all(t in norm for t in terms):
-                continue
+
+            matched_terms = {}
+            if fuzzy:
+                is_match, matched_terms = line_fuzzy_search(terms, norm, threshold)
+                if not is_match:
+                    continue
+            else:
+                if not all(t in norm for t in terms):
+                    continue
+
             m = TS_LINE_RE.match(line)
             ts = m.group(1) if m else None
             snippet = m.group(2) if m else line
             if not m and len(snippet) > 300:
-                # Düz metin paragraflarında eşleşmenin etrafından kes
-                idx = normalize_text(snippet).find(terms[0])
+                focus_word = terms[0]
+                if fuzzy and focus_word in matched_terms:
+                    focus_word = matched_terms[focus_word]["matched"]
+                idx = norm.find(focus_word)
+                if idx == -1: idx = 0
                 start = max(0, idx - 120)
                 snippet = ("…" if start else "") + snippet[start:start + 260] + "…"
+
             hit = {"timestamp": ts, "text": snippet}
+            if fuzzy and matched_terms:
+                hit["fuzzy_matches"] = matched_terms
             if link and ts:
                 hit["url"] = f"{link}&t={ts_to_seconds(ts)}s"
             hits.append(hit)
@@ -301,6 +392,7 @@ def search_transcripts(query: str, max_results: int = 300) -> dict:
             if total >= max_results:
                 truncated = True
                 break
+
         if hits:
             channel_name = os.path.dirname(rel_path) or "Genel"
             results.append({
@@ -312,7 +404,59 @@ def search_transcripts(query: str, max_results: int = 300) -> dict:
             })
         if truncated:
             break
-    return {"query": query, "total_hits": total, "files": results, "truncated": truncated}
+
+    return {
+        "query": query,
+        "fuzzy": fuzzy,
+        "threshold": threshold,
+        "total_hits": total,
+        "files": results,
+        "truncated": truncated
+    }
+
+
+def extract_word_pool(channel_name: str | None = None, top_n: int = 80) -> dict:
+    counts = Counter()
+    display_map = {}
+
+    target_dir = os.path.join(TRANSCRIPTS_DIR, sanitize_filename(channel_name)) if channel_name else TRANSCRIPTS_DIR
+
+    total_words = 0
+    if os.path.exists(target_dir):
+        for root, dirs, files in os.walk(target_dir):
+            for f in files:
+                if f.endswith(".txt"):
+                    text = read_transcript_file(os.path.join(root, f))
+                    if not text:
+                        continue
+                    body = text.split("=" * 60, 1)[-1]
+                    tokens = re.findall(r"[a-zA-ZçğıöşüÇĞİÖŞÜ]{3,}", body)
+                    for tok in tokens:
+                        total_words += 1
+                        n = normalize_text(tok)
+                        if len(n) >= 3 and n not in STOPWORDS and not n.isdigit():
+                            counts[n] += 1
+                            if n not in display_map:
+                                display_map[n] = tok.capitalize()
+
+    words_list = []
+    max_count = max(counts.values()) if counts else 1
+    for word_norm, cnt in counts.most_common(top_n):
+        weight = max(1, min(10, int((cnt / max_count) * 10)))
+        words_list.append({
+            "text": display_map.get(word_norm, word_norm.capitalize()),
+            "norm": word_norm,
+            "count": cnt,
+            "weight": weight
+        })
+
+    return {
+        "success": True,
+        "channel": channel_name or "Tüm Kanallar",
+        "total_words": total_words,
+        "unique_keywords": len(counts),
+        "words": words_list
+    }
 
 
 def open_in_file_manager(path: str):
@@ -431,10 +575,25 @@ class TranscriptServer(BaseHTTPRequestHandler):
 
         elif path == "/api/search":
             query = parse_qs(parsed.query).get("q", [""])[0]
+            fuzzy = parse_qs(parsed.query).get("fuzzy", ["0"])[0].lower() in ("1", "true", "yes")
+            try:
+                threshold = float(parse_qs(parsed.query).get("threshold", ["0.78"])[0])
+            except ValueError:
+                threshold = 0.78
+            channel = parse_qs(parsed.query).get("channel", [""])[0]
             if len(query.strip()) < 2:
                 self.send_json({"success": False, "error": "En az 2 karakter girin."}, status=400)
                 return
-            self.send_json({"success": True, **search_transcripts(query)})
+            self.send_json({"success": True, **search_transcripts(query, fuzzy=fuzzy, threshold=threshold, channel=channel)})
+            return
+
+        elif path == "/api/word-pool":
+            channel = parse_qs(parsed.query).get("channel", [""])[0]
+            try:
+                limit = int(parse_qs(parsed.query).get("limit", ["80"])[0])
+            except ValueError:
+                limit = 80
+            self.send_json(extract_word_pool(channel_name=channel, top_n=limit))
             return
 
         elif path == "/api/download-zip":

@@ -57,6 +57,10 @@
         </div>
 
         <div class="flex items-center space-x-2 sm:space-x-3">
+          <button onclick="toggleWordCloudSection()" class="px-3 py-1.5 rounded-xl text-xs font-medium bg-purple-600/20 hover:bg-purple-600/30 text-purple-200 border border-purple-500/30 transition flex items-center gap-2 shadow-sm" title="Transkriptlerde en sık geçen anahtar kelimeleri ve kelime bulutunu incele">
+            <i class="fa-solid fa-cloud text-purple-300"></i>
+            <span class="hidden sm:inline">Kelime Havuzu</span>
+          </button>
           <button onclick="toggleSearchPanel()" class="px-3 py-1.5 rounded-xl text-xs font-medium bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-200 border border-indigo-500/30 transition flex items-center gap-2 shadow-sm" title="İndirilen tüm transkriptlerin içinde ara">
             <i class="fa-solid fa-magnifying-glass-chart text-indigo-300"></i>
             <span class="hidden sm:inline">Transkriptlerde Ara</span>
@@ -138,24 +142,98 @@
         </div>
       </section>
 
-      <!-- Tam Metin Arama Paneli -->
-      <section id="searchPanel" class="hidden bg-slate-900/70 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-        <div class="flex items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
-            <i class="fa-solid fa-magnifying-glass-chart text-indigo-400"></i> İndirilen Tüm Transkriptlerde Ara
-          </h2>
-          <button onclick="toggleSearchPanel()" class="text-slate-500 hover:text-white text-sm" title="Kapat"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div class="flex flex-col sm:flex-row gap-2">
-          <input type="text" id="globalSearchInput" placeholder="Örn: imar planı, yapay zeka, bütçe..."
-            onkeydown="if(event.key==='Enter') runGlobalSearch()"
-            class="flex-1 bg-slate-950/90 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition">
-          <button id="globalSearchBtn" onclick="runGlobalSearch()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition flex items-center justify-center gap-2">
-            <i class="fa-solid fa-magnifying-glass"></i> Ara
+      <!-- Tam Metin Arama & Görsel Kelime Havuzu Paneli -->
+      <section id="searchPanel" class="hidden bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+        <div class="flex items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-lg">
+              <i class="fa-solid fa-magnifying-glass-chart"></i>
+            </div>
+            <div>
+              <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                Transkript Arama & Görsel Kelime Havuzu
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">%100 Yerel / Sıfır Maliyet</span>
+              </h2>
+              <p class="text-xs text-slate-400">İndirilen tüm transkriptlerde tam metin ve yazım toleranslı (benzerlik) arama yapın.</p>
+            </div>
+          </div>
+          <button onclick="toggleSearchPanel()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition" title="Kapat">
+            <i class="fa-solid fa-xmark"></i>
           </button>
         </div>
-        <p class="text-[11px] text-slate-500">Büyük/küçük harf ve Türkçe karakter duyarsızdır (ı/i, ş/s, ç/c...). Birden fazla kelime yazarsanız hepsini içeren satırlar bulunur. Zaman damgalı sonuçlara tıklayınca video o saniyeden açılır.</p>
-        <div id="globalSearchSummary" class="text-xs text-slate-400"></div>
+
+        <!-- Arama Giriş Alanı -->
+        <div class="space-y-3">
+          <div class="flex flex-col sm:flex-row gap-2">
+            <div class="relative flex-1">
+              <input type="text" id="globalSearchInput" placeholder="Örn: armutlu, imar planı, bütçe, ulucak..."
+                onkeydown="if(event.key==='Enter') runGlobalSearch()"
+                class="w-full bg-slate-950/90 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition pl-10 pr-10 shadow-inner">
+              <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-500 text-sm"></i>
+              <button onclick="document.getElementById('globalSearchInput').value=''; document.getElementById('globalSearchInput').focus();" class="absolute right-3 top-3 text-slate-500 hover:text-slate-300 text-xs" title="Arama kutusunu temizle">
+                <i class="fa-solid fa-circle-xmark"></i>
+              </button>
+            </div>
+            <button id="globalSearchBtn" onclick="runGlobalSearch()" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-sm font-semibold px-6 py-3 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <span>Ara</span>
+            </button>
+          </div>
+
+          <!-- Gelişmiş / Benzerlik (Fuzzy) Arama Ayarları Barı -->
+          <div class="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-950/60 border border-slate-800/80 rounded-xl text-xs">
+            <div class="flex flex-wrap items-center gap-4">
+              <!-- Benzerlik Seçeneği Toggle -->
+              <label class="flex items-center gap-2 cursor-pointer select-none text-slate-300 font-medium">
+                <input type="checkbox" id="fuzzySearchCheckbox" class="w-4 h-4 rounded text-indigo-600 bg-slate-900 border-slate-700 focus:ring-0 cursor-pointer">
+                <span class="flex items-center gap-1.5">
+                  <i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i>
+                  <span>Benzerlik Araması (Fuzzy)</span>
+                </span>
+              </label>
+
+              <!-- Tolerans Seçimi -->
+              <div id="fuzzyOptions" class="flex items-center gap-1.5 text-slate-400">
+                <span class="text-[11px]">Tolerans:</span>
+                <select id="fuzzyThresholdSelect" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-indigo-500">
+                  <option value="0.72">Geniş (%72)</option>
+                  <option value="0.78" selected>Dengeli (%78 - Önerilen)</option>
+                  <option value="0.85">Yakın (%85)</option>
+                </select>
+              </div>
+
+              <!-- İpucu Rozeti -->
+              <span class="hidden md:inline-flex items-center gap-1 text-[11px] text-slate-400">
+                <i class="fa-regular fa-circle-question text-indigo-400"></i>
+                Örn: <code class="text-indigo-300 font-mono bg-slate-900 px-1 rounded">armutli</code> yazsanız da <strong class="text-emerald-400">Armutlu</strong> bulunur!
+              </span>
+            </div>
+
+            <!-- Kelime Havuzu Göster/Gizle Butonu -->
+            <button onclick="toggleWordPoolDisplay()" class="px-3 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 transition flex items-center gap-1.5 font-medium text-xs">
+              <i class="fa-solid fa-cloud"></i>
+              <span id="btnWordPoolText">Kelime Havuzunu Göster</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Görsel Kelime Havuzu / Kelime Bulutu (Word Cloud) Konteyneri -->
+        <div id="wordPoolContainer" class="hidden bg-slate-950/80 border border-purple-500/20 rounded-xl p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-tags text-purple-400 text-sm"></i>
+              <h3 class="text-xs font-bold text-slate-200 uppercase tracking-wider">En Çok Geçen Anahtar Kelimeler (Görsel Havuz)</h3>
+            </div>
+            <span class="text-[11px] text-slate-400 font-mono" id="wordPoolStats">Kelimeler yükleniyor...</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Aşağıdaki kelimelere tıkladığınızda arama kutusu otomatik dolar ve transkriptlerdeki geçtiği yerler anında listelenir.</p>
+          <div id="wordCloudTags" class="flex flex-wrap items-center gap-2 pt-2 min-h-[100px] max-h-[300px] overflow-y-auto pr-1">
+            <div class="text-xs text-slate-500">Kelime havuzu yükleniyor...</div>
+          </div>
+        </div>
+
+        <!-- Sonuç Özeti & Sonuç Listesi -->
+        <div id="globalSearchSummary" class="text-xs text-slate-400 font-medium"></div>
         <div id="globalSearchResults" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1"></div>
       </section>
 
@@ -1124,32 +1202,121 @@
       window.location.href = '/api/download-zip' + query;
     }
 
-    // ---- Tam metin arama ----
+    // ---- Tam metin arama & Görsel Kelime Havuzu ----
+    let isWordPoolLoaded = false;
+
     function toggleSearchPanel() {
       const panel = document.getElementById('searchPanel');
       panel.classList.toggle('hidden');
       if (!panel.classList.contains('hidden')) {
         document.getElementById('globalSearchInput').focus();
+        if (!isWordPoolLoaded) loadWordPool();
       }
     }
 
-    function highlightTerms(text, query) {
-      // Türkçe/aksan duyarsız vurgulama: normalize edilmiş metinde eşleşen aralıkları orijinal metne uygula
-      const terms = normalizeTr(query).split(/\s+/).filter(Boolean);
+    function toggleWordCloudSection() {
+      const panel = document.getElementById('searchPanel');
+      if (panel.classList.contains('hidden')) {
+        panel.classList.remove('hidden');
+      }
+      const pool = document.getElementById('wordPoolContainer');
+      pool.classList.remove('hidden');
+      document.getElementById('btnWordPoolText').innerText = 'Kelime Havuzunu Gizle';
+      if (!isWordPoolLoaded) loadWordPool();
+      pool.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function toggleWordPoolDisplay() {
+      const pool = document.getElementById('wordPoolContainer');
+      const btnText = document.getElementById('btnWordPoolText');
+      pool.classList.toggle('hidden');
+      if (!pool.classList.contains('hidden')) {
+        btnText.innerText = 'Kelime Havuzunu Gizle';
+        if (!isWordPoolLoaded) loadWordPool();
+      } else {
+        btnText.innerText = 'Kelime Havuzunu Göster';
+      }
+    }
+
+    async function loadWordPool() {
+      const tagsContainer = document.getElementById('wordCloudTags');
+      const statsEl = document.getElementById('wordPoolStats');
+      tagsContainer.innerHTML = '<div class="text-xs text-slate-500 flex items-center gap-2"><i class="fa-solid fa-circle-notch animate-spin text-purple-400"></i> Kelime havuzu taranıyor...</div>';
+
+      try {
+        const query = currentChannelTitle ? ('?channel=' + encodeURIComponent(currentChannelTitle) + '&limit=80') : '?limit=80';
+        const res = await fetch('/api/word-pool' + query);
+        const data = await res.json();
+
+        if (!data.success || !data.words || data.words.length === 0) {
+          tagsContainer.innerHTML = '<div class="text-xs text-slate-500">Henüz taranmış transkript metni bulunamadı.</div>';
+          statsEl.innerText = '0 kelime';
+          return;
+        }
+
+        isWordPoolLoaded = true;
+        statsEl.innerText = `${data.words.length} anahtar kelime (${data.total_words.toLocaleString()} toplam kelime arasından)`;
+        tagsContainer.innerHTML = '';
+
+        data.words.forEach(w => {
+          const btn = document.createElement('button');
+          btn.onclick = () => searchKeyword(w.text);
+          
+          let colorClass = 'text-xs text-slate-300 bg-slate-800/80 border-slate-700 hover:bg-slate-700 hover:text-white';
+          if (w.weight >= 8) {
+            colorClass = 'text-sm sm:text-base font-bold text-purple-300 bg-purple-500/20 border-purple-500/40 hover:bg-purple-500/35 hover:scale-105 shadow-sm shadow-purple-500/10';
+          } else if (w.weight >= 5) {
+            colorClass = 'text-xs sm:text-sm font-semibold text-indigo-300 bg-indigo-500/15 border-indigo-500/30 hover:bg-indigo-500/30 hover:scale-105 shadow-sm shadow-indigo-500/10';
+          } else if (w.weight >= 3) {
+            colorClass = 'text-xs font-medium text-emerald-300 bg-emerald-500/15 border-emerald-500/30 hover:bg-emerald-500/25 hover:scale-105';
+          } else if (w.weight >= 2) {
+            colorClass = 'text-xs text-amber-300 bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/20 hover:scale-105';
+          }
+
+          btn.className = `px-3 py-1.5 rounded-xl border transition-all cursor-pointer active:scale-95 flex items-center gap-1.5 select-none ${colorClass}`;
+          btn.innerHTML = `<span>${escapeHtml(w.text)}</span><span class="text-[10px] opacity-60 font-mono">(${w.count})</span>`;
+          btn.title = `"${w.text}" kelimesini ara (${w.count} kez geçiyor)`;
+          tagsContainer.appendChild(btn);
+        });
+
+      } catch (err) {
+        tagsContainer.innerHTML = `<div class="text-xs text-rose-400">Kelime havuzu yüklenemedi: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function searchKeyword(keyword) {
+      document.getElementById('globalSearchInput').value = keyword;
+      runGlobalSearch();
+      document.getElementById('globalSearchInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function highlightTerms(text, query, fuzzyMatches = null) {
+      // Hem sorgu terimlerini hem de fuzzy ile eşleşen alternatif kelimeleri vurgula
+      let allTerms = normalizeTr(query).split(/\s+/).filter(Boolean);
+      if (fuzzyMatches) {
+        Object.values(fuzzyMatches).forEach(m => {
+          if (m && m.matched) {
+            const normM = normalizeTr(m.matched);
+            if (!allTerms.includes(normM)) allTerms.push(normM);
+          }
+        });
+      }
+
       const chars = Array.from(text);
       const norm = chars.map(c => normalizeTr(c) || c);
       const joined = norm.join('');
       const marks = new Array(chars.length).fill(false);
-      // normalize edilmiş karakter -> orijinal indeks eşlemesi
       const map = [];
       norm.forEach((n, i) => { for (let k = 0; k < n.length; k++) map.push(i); });
-      terms.forEach(t => {
+
+      allTerms.forEach(t => {
         let pos = joined.indexOf(t);
         while (pos !== -1) {
           for (let k = pos; k < pos + t.length; k++) marks[map[k]] = true;
           pos = joined.indexOf(t, pos + t.length);
         }
       });
+
       let out = '', open = false;
       chars.forEach((c, i) => {
         if (marks[i] && !open) { out += '<mark>'; open = true; }
@@ -1168,45 +1335,91 @@
         showToast('Lütfen en az 2 karakter girin.', 'warning');
         return;
       }
+
+      const fuzzy = document.getElementById('fuzzySearchCheckbox')?.checked || false;
+      const threshold = document.getElementById('fuzzyThresholdSelect')?.value || '0.78';
+      const channel = currentChannelTitle || '';
+
       const btn = document.getElementById('globalSearchBtn');
       btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-circle-notch animate-spin"></i><span>Aranıyor...</span>`;
       summary.innerText = 'Aranıyor...';
       container.innerHTML = '';
+
       try {
-        const res = await fetch('/api/search?q=' + encodeURIComponent(query));
+        let url = `/api/search?q=${encodeURIComponent(query)}&fuzzy=${fuzzy ? '1' : '0'}&threshold=${threshold}`;
+        if (channel) url += `&channel=${encodeURIComponent(channel)}`;
+
+        const res = await fetch(url);
         const data = await res.json();
         if (!data.success) throw new Error(data.error || 'Arama başarısız');
+
         if (data.total_hits === 0) {
-          summary.innerText = `"${query}" için sonuç bulunamadı.`;
+          summary.innerHTML = `<span class="text-amber-400">"${escapeHtml(query)}"</span> için sonuç bulunamadı.` + 
+            (!fuzzy ? ' <button onclick="document.getElementById(\'fuzzySearchCheckbox\').checked=true; runGlobalSearch();" class="text-indigo-400 underline font-semibold ml-1">Benzerlik (Fuzzy) aramasıyla dene</button>' : '');
           return;
         }
-        summary.innerHTML = `<strong>${data.files.length}</strong> transkriptte <strong>${data.total_hits}</strong> eşleşme` +
-          (data.truncated ? ' <span class="text-amber-400">(ilk sonuçlar gösteriliyor, aramayı daraltın)</span>' : '');
+
+        const modeBadge = data.fuzzy
+          ? `<span class="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-semibold"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Benzerlik Araması Aktif</span>`
+          : `<span class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[11px]">Tam Eşleşme</span>`;
+
+        summary.innerHTML = `<div class="flex flex-wrap items-center gap-2">
+          <span><strong>${data.files.length}</strong> transkriptte <strong>${data.total_hits}</strong> eşleşme bulundu.</span>
+          ${modeBadge}
+          ${data.truncated ? '<span class="text-amber-400 text-[11px]">(İlk 300 sonuç listeleniyor)</span>' : ''}
+        </div>`;
+
         data.files.forEach(f => {
           const card = document.createElement('div');
-          card.className = 'bg-slate-950/60 border border-slate-800 rounded-xl p-4';
+          card.className = 'bg-slate-950/70 border border-slate-800 hover:border-slate-700 transition rounded-xl p-4 shadow-md';
+          
           const hitsHtml = f.hits.map(h => {
             const ts = h.timestamp
               ? (h.url
-                  ? `<a href="${escapeHtml(h.url)}" target="_blank" class="font-mono text-[11px] text-indigo-300 hover:text-indigo-200 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded shrink-0">▶ ${escapeHtml(h.timestamp)}</a>`
+                  ? `<a href="${escapeHtml(h.url)}" target="_blank" class="font-mono text-[11px] text-indigo-300 hover:text-white bg-indigo-500/10 hover:bg-indigo-500/30 border border-indigo-500/20 px-2 py-0.5 rounded shrink-0 transition" title="Videoyu bu dakikadan oynat">▶ ${escapeHtml(h.timestamp)}</a>`
                   : `<span class="font-mono text-[11px] text-slate-400 shrink-0">${escapeHtml(h.timestamp)}</span>`)
               : '';
-            return `<li class="flex items-start gap-2 text-xs text-slate-300 leading-relaxed">${ts}<span>${highlightTerms(h.text, query)}</span></li>`;
+
+            let fuzzyBadges = '';
+            if (h.fuzzy_matches) {
+              fuzzyBadges = Object.entries(h.fuzzy_matches).map(([term, m]) => 
+                `<span class="inline-flex items-center gap-1 font-mono text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.5 rounded ml-1.5" title="Aranan: ${escapeHtml(term)}, Eşleşen: ${escapeHtml(m.matched)}"><i class="fa-solid fa-bolt text-[9px]"></i>${escapeHtml(m.matched)} (%${Math.round(m.score * 100)})</span>`
+              ).join('');
+            }
+
+            return `<li class="flex items-start gap-2 text-xs text-slate-300 leading-relaxed py-0.5">
+              ${ts}
+              <div class="flex-1">
+                <span>${highlightTerms(h.text, query, h.fuzzy_matches)}</span>
+                ${fuzzyBadges}
+              </div>
+            </li>`;
           }).join('');
+
+          const channelBadge = f.channel 
+            ? `<span class="text-[10px] px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 font-medium">${escapeHtml(f.channel)}</span>` 
+            : '';
+
           card.innerHTML = `
             <div class="flex items-center justify-between gap-2 mb-2">
-              <div class="text-sm font-semibold text-slate-100">${escapeHtml(f.title)}</div>
-              <span class="text-[11px] text-slate-500 shrink-0">${f.hits.length} eşleşme</span>
+              <div class="flex items-center gap-2 truncate">
+                ${channelBadge}
+                <div class="text-sm font-semibold text-slate-100 truncate">${escapeHtml(f.title)}</div>
+              </div>
+              <span class="text-[11px] text-slate-400 shrink-0 font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800">${f.hits.length} eşleşme</span>
             </div>
-            ${f.link ? `<a href="${escapeHtml(f.link)}" target="_blank" class="text-[11px] text-slate-500 hover:text-slate-300">${escapeHtml(f.link)}</a>` : ''}
-            <ul class="mt-2 space-y-1.5">${hitsHtml}</ul>`;
+            ${f.link ? `<a href="${escapeHtml(f.link)}" target="_blank" class="text-[11px] text-slate-500 hover:text-indigo-400 flex items-center gap-1 truncate mb-2"><i class="fa-brands fa-youtube text-red-500"></i> ${escapeHtml(f.link)}</a>` : ''}
+            <ul class="mt-2 space-y-1.5 border-t border-slate-800/60 pt-2">${hitsHtml}</ul>`;
           container.appendChild(card);
         });
+
       } catch (err) {
         summary.innerText = '';
         showToast('Arama hatası: ' + err.message, 'error');
       } finally {
         btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i><span>Ara</span>`;
       }
     }
 
