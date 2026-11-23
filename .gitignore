@@ -2,4 +2,9 @@
 *.pyc
 transkriptler/*
 !transkriptler/.gitkeep
+kesitler/*
+!kesitler/.gitkeep
 *.png
+*.mp4
+*.mkv
+*.webm

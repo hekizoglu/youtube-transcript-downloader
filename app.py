@@ -18,7 +18,9 @@ import yt_dlp
 PORT = 5500
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TRANSCRIPTS_DIR = os.path.join(BASE_DIR, "transkriptler")
+CLIPS_DIR = os.path.join(BASE_DIR, "kesitler")
 os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)
+os.makedirs(CLIPS_DIR, exist_ok=True)
 
 def format_duration(dur) -> str:
     if dur is None or dur == "NA":
@@ -142,6 +144,112 @@ def get_channel_dir(channel_name: str | None = None) -> str:
     target = os.path.join(TRANSCRIPTS_DIR, name)
     os.makedirs(target, exist_ok=True)
     return target
+
+
+def get_clips_channel_dir(channel_name: str | None = None) -> str:
+    """Kesit videoları için kanal klasörünü döner ve oluşturur."""
+    name = sanitize_filename(channel_name or "").strip()
+    if not name:
+        name = "Genel"
+    target = os.path.join(CLIPS_DIR, name)
+    os.makedirs(target, exist_ok=True)
+    return target
+
+
+def parse_timestamp_to_seconds(ts_str: str) -> int:
+    """'01:14:15' veya '14:15' gibi zaman damgalarını saniyeye çevirir."""
+    if not ts_str:
+        return 0
+    parts = ts_str.strip().split(":")
+    try:
+        if len(parts) == 3:
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(float(parts[2]))
+        elif len(parts) == 2:
+            return int(parts[0]) * 60 + int(float(parts[1]))
+        elif len(parts) == 1:
+            return int(float(parts[0]))
+    except Exception:
+        pass
+    return 0
+
+
+def seconds_to_timestamp(secs: int) -> str:
+    """Saniyeyi '01:14:15' veya '14:15' formatına çevirir."""
+    secs = max(0, int(secs))
+    m, s = divmod(secs, 60)
+    h, m = divmod(m, 60)
+    if h > 0:
+        return f"{h:02d}:{m:02d}:{s:02d}"
+    return f"{m:02d}:{s:02d}"
+
+
+def download_video_clip_segment(video_url: str, start_sec: int, end_sec: int, channel_name: str, video_title: str) -> dict:
+    """
+    Belirli zaman aralığındaki kesiti en yüksek kalitede indirip MP4 formatında kaydeder.
+    Tam videoyu indirmez; HTTP Range ile sadece istenen saniyeleri çeker.
+    """
+    from yt_dlp.utils import download_range_func
+
+    channel_dir = get_clips_channel_dir(channel_name)
+    start_ts_str = seconds_to_timestamp(start_sec).replace(":", "-")
+    end_ts_str = seconds_to_timestamp(end_sec).replace(":", "-")
+    safe_title = sanitize_filename(video_title)
+    
+    out_tmpl = os.path.join(channel_dir, f"{safe_title} [{start_ts_str}_{end_ts_str}].%(ext)s")
+    expected_filename = f"{safe_title} [{start_ts_str}_{end_ts_str}].mp4"
+    final_file_path = os.path.join(channel_dir, expected_filename)
+
+    # Zaten daha önce indirilmişse doğrudan dön
+    if os.path.exists(final_file_path) and os.path.getsize(final_file_path) > 1024:
+        return {
+            "success": True,
+            "cached": True,
+            "filename": expected_filename,
+            "relative_path": os.path.relpath(final_file_path, BASE_DIR).replace("\\", "/"),
+            "full_path": final_file_path,
+            "duration": end_sec - start_sec,
+            "size_bytes": os.path.getsize(final_file_path)
+        }
+
+    ydl_opts = {
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best",
+        "merge_output_format": "mp4",
+        "outtmpl": out_tmpl,
+        "download_ranges": download_range_func(None, [(start_sec, end_sec)]),
+        "force_keyframes_at_cuts": True,
+        "js_runtimes": {"node": {}},
+        "extractor_args": {"youtube": {"player_client": ["mweb", "android", "ios"]}},
+        "quiet": True,
+        "no_warnings": True,
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([video_url])
+
+    # Çıkan dosyayı doğrula
+    if not os.path.exists(final_file_path):
+        # Farklı uzantıda kalmış mı kontrol et
+        base_no_ext = os.path.splitext(final_file_path)[0]
+        found = False
+        for ext in (".mp4", ".mkv", ".webm"):
+            candidate = base_no_ext + ext
+            if os.path.exists(candidate):
+                final_file_path = candidate
+                expected_filename = os.path.basename(candidate)
+                found = True
+                break
+        if not found:
+            raise FileNotFoundError("Kesit videosu indirilemedi veya kaydedilemedi.")
+
+    return {
+        "success": True,
+        "cached": False,
+        "filename": expected_filename,
+        "relative_path": os.path.relpath(final_file_path, BASE_DIR).replace("\\", "/"),
+        "full_path": final_file_path,
+        "duration": end_sec - start_sec,
+        "size_bytes": os.path.getsize(final_file_path)
+    }
 
 
 def find_existing_file(video_id: str, channel_name: str | None = None) -> str | None:
@@ -605,6 +713,11 @@ class TranscriptServer(BaseHTTPRequestHandler):
             self.send_json(extract_word_pool(channel_name=channel, top_n=limit))
             return
 
+        elif path == "/api/open-clips-folder":
+            open_in_file_manager(CLIPS_DIR)
+            self.send_json({"success": True, "path": CLIPS_DIR})
+            return
+
         elif path == "/api/download-zip":
             channel = parse_qs(parsed.query).get("channel", [""])[0]
             zip_buffer = io.BytesIO()
@@ -891,6 +1004,46 @@ class TranscriptServer(BaseHTTPRequestHandler):
                 "text_clean": full_clean,
                 "file": rel_file_path
             })
+            return
+
+        elif path == "/api/download-clip":
+            video_url = payload.get("url", "").strip()
+            video_id = payload.get("id", "").strip()
+            video_title = payload.get("title", "").strip() or "Video Kesiti"
+            channel_name = payload.get("channel", "").strip() or "Genel"
+            ts_str = payload.get("timestamp", "").strip()
+            pad_before = int(payload.get("pad_before", 10))
+            pad_after = int(payload.get("pad_after", 20))
+
+            if not video_url and video_id:
+                video_url = f"https://www.youtube.com/watch?v={video_id}"
+
+            if not video_url:
+                self.send_json({"success": False, "error": "Geçerli bir video URL veya ID belirtilmedi."}, status=400)
+                return
+
+            center_sec = parse_timestamp_to_seconds(ts_str)
+            start_sec = max(0, center_sec - max(0, pad_before))
+            end_sec = center_sec + max(5, pad_after)
+
+            try:
+                result = download_video_clip_segment(
+                    video_url=video_url,
+                    start_sec=start_sec,
+                    end_sec=end_sec,
+                    channel_name=channel_name,
+                    video_title=video_title
+                )
+                self.send_json({
+                    "success": True,
+                    "start_sec": start_sec,
+                    "end_sec": end_sec,
+                    "start_ts": seconds_to_timestamp(start_sec),
+                    "end_ts": seconds_to_timestamp(end_sec),
+                    "clip": result
+                })
+            except Exception as e:
+                self.send_json({"success": False, "error": f"Kesit indirme hatası: {str(e)}"}, status=500)
             return
 
         self.send_error(404, "Endpoint bulunamadi")
